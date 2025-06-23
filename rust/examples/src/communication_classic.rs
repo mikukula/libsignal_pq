@@ -67,7 +67,8 @@ async fn main() -> Result<(), SignalProtocolError> {
         bob_signed_prekey.public_key()?,
         bob_signed_prekey.signature().unwrap(),
         *bob_identity.identity_key(),
-    )?;
+    )?
+    .with_swoosh_pre_key(bob_prekey_id, bob_prekey.public_key()?, bob_prekey.signature().unwrap());
     // Note: No .with_kyber_pre_key() call for classic Signal Protocol
     
     println!("\n=== PRE-KEY BUNDLE CREATED (Classic) ===");

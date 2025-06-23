@@ -75,12 +75,13 @@ pub use session_cipher::{
 };
 pub use state::{
     GenericSignedPreKey, KyberPreKeyId, KyberPreKeyRecord, PreKeyBundle, PreKeyBundleContent,
-    PreKeyId, PreKeyRecord, SessionRecord, SignedPreKeyId, SignedPreKeyRecord,
+    PreKeyId, PreKeyRecord, SwooshPreKeyRecordUnsigned, SessionRecord, SignedPreKeyId, SignedPreKeyRecord,
+    SwooshPreKeyId, SwooshPreKeyRecord
 };
 pub use storage::{
     Direction, IdentityChange, IdentityKeyStore, InMemIdentityKeyStore, InMemKyberPreKeyStore,
     InMemPreKeyStore, InMemSenderKeyStore, InMemSessionStore, InMemSignalProtocolStore,
-    InMemSignedPreKeyStore, KyberPreKeyStore, PreKeyStore, ProtocolStore, SenderKeyStore,
-    SessionStore, SignedPreKeyStore,
+    InMemSignedPreKeyStore, InMemSwooshPreKeyStore, KyberPreKeyStore, PreKeyStore, ProtocolStore, SenderKeyStore,
+    SessionStore, SignedPreKeyStore, SwooshPreKeyStore, SwooshUnsignedPreKeyStore,
 };
 pub use timestamp::Timestamp;

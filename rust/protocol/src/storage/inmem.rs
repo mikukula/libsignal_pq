@@ -15,9 +15,7 @@ use uuid::Uuid;
 
 use crate::storage::traits::{self, IdentityChange};
 use crate::{
-    IdentityKey, IdentityKeyPair, KyberPreKeyId, KyberPreKeyRecord, PreKeyId, PreKeyRecord,
-    ProtocolAddress, Result, SenderKeyRecord, SessionRecord, SignalProtocolError, SignedPreKeyId,
-    SignedPreKeyRecord,
+    IdentityKey, IdentityKeyPair, KyberPreKeyId, KyberPreKeyRecord, PreKeyId, PreKeyRecord, SwooshPreKeyRecordUnsigned, ProtocolAddress, Result, SenderKeyRecord, SessionRecord, SignalProtocolError, SignedPreKeyId, SignedPreKeyRecord, SwooshPreKeyId, SwooshPreKeyRecord
 };
 
 /// Reference implementation of [traits::IdentityKeyStore].
@@ -26,6 +24,7 @@ pub struct InMemIdentityKeyStore {
     key_pair: IdentityKeyPair,
     registration_id: u32,
     known_keys: HashMap<ProtocolAddress, IdentityKey>,
+    is_alice: bool,
 }
 
 impl InMemIdentityKeyStore {
@@ -33,11 +32,12 @@ impl InMemIdentityKeyStore {
     ///
     /// `key_pair` corresponds to [traits::IdentityKeyStore::get_identity_key_pair], and
     /// `registration_id` corresponds to [traits::IdentityKeyStore::get_local_registration_id].
-    pub fn new(key_pair: IdentityKeyPair, registration_id: u32) -> Self {
+    pub fn new(key_pair: IdentityKeyPair, registration_id: u32, is_alice:bool) -> Self {
         Self {
             key_pair,
             registration_id,
             known_keys: HashMap::new(),
+            is_alice,
         }
     }
 
@@ -94,6 +94,10 @@ impl traits::IdentityKeyStore for InMemIdentityKeyStore {
             None => Ok(None),
             Some(k) => Ok(Some(k.to_owned())),
         }
+    }
+
+    async fn is_alice(&self) -> Result<bool> {
+        Ok(self.is_alice)
     }
 }
 
@@ -244,6 +248,84 @@ impl traits::KyberPreKeyStore for InMemKyberPreKeyStore {
     }
 }
 
+/// Reference implementation of [traits::SwooshPreKeyStore].
+#[derive(Clone)]
+pub struct InMemSwooshPreKeyStore {
+    swoosh_pre_keys: HashMap<SwooshPreKeyId, SwooshPreKeyRecord>,
+    swoosh_unsigned_pre_keys: HashMap<SwooshPreKeyId, SwooshPreKeyRecordUnsigned>,
+}
+
+impl InMemSwooshPreKeyStore {
+    /// Create an empty swoosh pre-key store.
+    pub fn new() -> Self {
+        Self {
+            swoosh_pre_keys: HashMap::new(),
+            swoosh_unsigned_pre_keys: HashMap::new(),
+        }
+    }
+
+    /// Returns all registered Swoosh pre-key ids
+    pub fn all_swoosh_pre_key_ids(&self) -> impl Iterator<Item = &SwooshPreKeyId> {
+        self.swoosh_pre_keys.keys()
+    }
+}
+
+impl Default for InMemSwooshPreKeyStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait(?Send)]
+impl traits::SwooshPreKeyStore for InMemSwooshPreKeyStore {
+    async fn get_swoosh_pre_key(&self, swoosh_prekey_id: SwooshPreKeyId) -> Result<SwooshPreKeyRecord> {
+        Ok(self
+            .swoosh_pre_keys
+            .get(&swoosh_prekey_id)
+            .ok_or(SignalProtocolError::InvalidSwooshPreKeyId)?
+            .clone())
+    }
+
+    async fn save_swoosh_pre_key(
+        &mut self,
+        swoosh_prekey_id: SwooshPreKeyId,
+        record: &SwooshPreKeyRecord,
+    ) -> Result<()> {
+        self.swoosh_pre_keys
+            .insert(swoosh_prekey_id, record.to_owned());
+        Ok(())
+    }
+
+    async fn mark_swoosh_pre_key_used(&mut self, _swoosh_prekey_id: SwooshPreKeyId) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[async_trait(?Send)]
+impl traits::SwooshUnsignedPreKeyStore for InMemSwooshPreKeyStore {
+    async fn get_unsigned_swoosh_pre_key(&self, swoosh_prekey_id: SwooshPreKeyId) -> Result<SwooshPreKeyRecordUnsigned> {
+        Ok(self
+            .swoosh_unsigned_pre_keys
+            .get(&swoosh_prekey_id)
+            .ok_or(SignalProtocolError::InvalidSwooshPreKeyId)?
+            .clone())
+    }
+
+    async fn save_unsigned_swoosh_pre_key(
+        &mut self,
+        swoosh_prekey_id: SwooshPreKeyId,
+        record: &SwooshPreKeyRecordUnsigned,
+    ) -> Result<()> {
+        self.swoosh_unsigned_pre_keys
+            .insert(swoosh_prekey_id, record.to_owned());
+        Ok(())
+    }
+
+    async fn mark_unsigned_swoosh_pre_key_used(&mut self, _swoosh_prekey_id: SwooshPreKeyId) -> Result<()> {
+        Ok(())
+    }
+}
+
 /// Reference implementation of [traits::SessionStore].
 #[derive(Clone)]
 pub struct InMemSessionStore {
@@ -361,6 +443,7 @@ pub struct InMemSignalProtocolStore {
     pub pre_key_store: InMemPreKeyStore,
     pub signed_pre_key_store: InMemSignedPreKeyStore,
     pub kyber_pre_key_store: InMemKyberPreKeyStore,
+    pub swoosh_pre_key_store: InMemSwooshPreKeyStore,
     pub identity_store: InMemIdentityKeyStore,
     pub sender_key_store: InMemSenderKeyStore,
 }
@@ -368,13 +451,14 @@ pub struct InMemSignalProtocolStore {
 impl InMemSignalProtocolStore {
     /// Create an object with the minimal implementation of [traits::ProtocolStore], representing
     /// the given identity `key_pair` along with the separate randomly chosen `registration_id`.
-    pub fn new(key_pair: IdentityKeyPair, registration_id: u32) -> Result<Self> {
+    pub fn new(key_pair: IdentityKeyPair, registration_id: u32, is_alice: bool) -> Result<Self> {
         Ok(Self {
             session_store: InMemSessionStore::new(),
             pre_key_store: InMemPreKeyStore::new(),
             signed_pre_key_store: InMemSignedPreKeyStore::new(),
             kyber_pre_key_store: InMemKyberPreKeyStore::new(),
-            identity_store: InMemIdentityKeyStore::new(key_pair, registration_id),
+            swoosh_pre_key_store: InMemSwooshPreKeyStore::new(),
+            identity_store: InMemIdentityKeyStore::new(key_pair, registration_id, is_alice),
             sender_key_store: InMemSenderKeyStore::new(),
         })
     }
@@ -426,6 +510,10 @@ impl traits::IdentityKeyStore for InMemSignalProtocolStore {
 
     async fn get_identity(&self, address: &ProtocolAddress) -> Result<Option<IdentityKey>> {
         self.identity_store.get_identity(address).await
+    }
+
+    async fn is_alice(&self) -> Result<bool> {
+        self.identity_store.is_alice().await
     }
 }
 
@@ -482,6 +570,56 @@ impl traits::KyberPreKeyStore for InMemSignalProtocolStore {
     async fn mark_kyber_pre_key_used(&mut self, kyber_prekey_id: KyberPreKeyId) -> Result<()> {
         self.kyber_pre_key_store
             .mark_kyber_pre_key_used(kyber_prekey_id)
+            .await
+    }
+}
+
+#[async_trait(?Send)]
+impl traits::SwooshPreKeyStore for InMemSignalProtocolStore {
+    async fn get_swoosh_pre_key(&self, swoosh_prekey_id: SwooshPreKeyId) -> Result<SwooshPreKeyRecord> {
+        self.swoosh_pre_key_store
+            .get_swoosh_pre_key(swoosh_prekey_id)
+            .await
+    }
+
+    async fn save_swoosh_pre_key(
+        &mut self,
+        swoosh_prekey_id: SwooshPreKeyId,
+        record: &SwooshPreKeyRecord,
+    ) -> Result<()> {
+        self.swoosh_pre_key_store
+            .save_swoosh_pre_key(swoosh_prekey_id, record)
+            .await
+    }
+
+    async fn mark_swoosh_pre_key_used(&mut self, swoosh_prekey_id: SwooshPreKeyId) -> Result<()> {
+        self.swoosh_pre_key_store
+            .mark_swoosh_pre_key_used(swoosh_prekey_id)
+            .await
+    }
+}
+
+#[async_trait(?Send)]
+impl traits::SwooshUnsignedPreKeyStore for InMemSignalProtocolStore {
+    async fn get_unsigned_swoosh_pre_key(&self, swoosh_prekey_id: SwooshPreKeyId) -> Result<SwooshPreKeyRecordUnsigned> {
+        self.swoosh_pre_key_store
+            .get_unsigned_swoosh_pre_key(swoosh_prekey_id)
+            .await
+    }
+
+    async fn save_unsigned_swoosh_pre_key(
+        &mut self,
+        swoosh_prekey_id: SwooshPreKeyId,
+        record: &SwooshPreKeyRecordUnsigned,
+    ) -> Result<()> {
+        self.swoosh_pre_key_store
+            .save_unsigned_swoosh_pre_key(swoosh_prekey_id, record)
+            .await
+    }
+
+    async fn mark_unsigned_swoosh_pre_key_used(&mut self, swoosh_prekey_id: SwooshPreKeyId) -> Result<()> {
+        self.swoosh_pre_key_store
+            .mark_unsigned_swoosh_pre_key_used(swoosh_prekey_id)
             .await
     }
 }

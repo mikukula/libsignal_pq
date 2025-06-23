@@ -1,4 +1,5 @@
 use libsignal_protocol::*;
+use libsignal_protocol::{SwooshPreKeyStore};
 use pswoosh::keys::SwooshKeyPair;
 use rand::{rng, RngCore};
 use std::time::SystemTime;
@@ -21,17 +22,17 @@ async fn main() -> Result<(), SignalProtocolError> {
     println!("Bob Identity Public Key: {:?}", hex::encode(bob_identity.identity_key().serialize()));
     
     // Create in-memory stores for both parties
-    let mut alice_store = InMemSignalProtocolStore::new(alice_identity, csprng.next_u32())?;
-    let mut bob_store = InMemSignalProtocolStore::new(bob_identity, csprng.next_u32())?;
+    let mut alice_store = InMemSignalProtocolStore::new(alice_identity, csprng.next_u32(), true)?;
+    let mut bob_store = InMemSignalProtocolStore::new(bob_identity, csprng.next_u32(), false)?;
     
     // Generate Bob's signed pre-key
     let bob_signed_prekey_pair = SwooshKeyPair::generate(false);
-    let bob_signed_prekey_id = SignedPreKeyId::from(1u32);
+    let bob_signed_prekey_id = SwooshPreKeyId::from(1u32);
     let bob_signed_prekey_signature = bob_identity
         .private_key()
         .calculate_signature(&bob_signed_prekey_pair.public_key.serialize(), &mut csprng)?;
     
-    let bob_signed_prekey = SignedPreKeyRecord::new(
+    let bob_signed_prekey = SwooshPreKeyRecord::new(
         bob_signed_prekey_id,
         Timestamp::from_epoch_millis(0),
         &bob_signed_prekey_pair,
@@ -44,18 +45,18 @@ async fn main() -> Result<(), SignalProtocolError> {
     println!("Signed Pre-Key Signature: {:?}", hex::encode(&bob_signed_prekey_signature));
     
     // Store Bob's signed pre-key
-    bob_store.save_signed_pre_key(bob_signed_prekey_id, &bob_signed_prekey).await?;
+    bob_store.save_swoosh_pre_key(bob_signed_prekey_id, &bob_signed_prekey).await?;
     
     // Generate one-time pre-key for Bob
     let bob_prekey_pair = SwooshKeyPair::generate(false);
-    let bob_prekey_id = PreKeyId::from(1u32);
-    let bob_prekey = PreKeyRecord::new(bob_prekey_id, &bob_prekey_pair);
+    let bob_prekey_id = SwooshPreKeyId::from(1u32);
+    let bob_prekey = SwooshPreKeyRecordUnsigned::new(bob_prekey_id, &bob_prekey_pair);
     
     println!("\n=== BOB'S ONE-TIME PRE-KEY ===");
     println!("One-Time Pre-Key ID: {:?}", bob_prekey_id);
     println!("One-Time Pre-Key Public: {:?}", hex::encode(bob_prekey_pair.public_key.serialize()));
     
-    bob_store.save_pre_key(bob_prekey_id, &bob_prekey).await?;
+    bob_store.save_unsigned_swoosh_pre_key(bob_prekey_id, &bob_prekey).await?;
     
     // Create pre-key bundle for Bob (WITHOUT Kyber key for classic mode)
     let bob_prekey_bundle = PreKeyBundle::new(

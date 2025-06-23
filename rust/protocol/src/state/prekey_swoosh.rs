@@ -8,7 +8,8 @@ use std::fmt;
 use prost::Message;
 
 use crate::proto::storage::PreKeyRecordStructure;
-use crate::{KeyPair, PrivateKey, PublicKey, Result, SignalProtocolError};
+use crate::{Result, SignalProtocolError, SwooshPreKeyId};
+use pswoosh::keys::{SwooshKeyPair, PrivateSwooshKey, PublicSwooshKey};
 
 /// A unique identifier selecting among this client's known pre-keys.
 #[derive(
@@ -23,14 +24,14 @@ impl fmt::Display for PreKeyId {
 }
 
 #[derive(Debug, Clone)]
-pub struct PreKeyRecord {
+pub struct SwooshPreKeyRecordUnsigned {
     pre_key: PreKeyRecordStructure,
 }
 
-impl PreKeyRecord {
-    pub fn new(id: PreKeyId, key: &KeyPair) -> Self {
-        let public_key = key.public_key.serialize().to_vec();
-        let private_key = key.private_key.serialize().to_vec();
+impl SwooshPreKeyRecordUnsigned {
+    pub fn new(id: SwooshPreKeyId, key: &SwooshKeyPair) -> Self {
+        let public_key = key.public_key().serialize().to_vec();
+        let private_key = key.private_key().serialize();
         Self {
             pre_key: PreKeyRecordStructure {
                 id: id.into(),
@@ -51,19 +52,19 @@ impl PreKeyRecord {
         Ok(self.pre_key.id.into())
     }
 
-    pub fn key_pair(&self) -> Result<KeyPair> {
-        Ok(KeyPair::from_public_and_private(
+    pub fn key_pair(&self) -> Result<SwooshKeyPair> {
+        Ok(SwooshKeyPair::from_public_and_private(
             &self.pre_key.public_key,
             &self.pre_key.private_key,
         )?)
     }
 
-    pub fn public_key(&self) -> Result<PublicKey> {
-        Ok(PublicKey::deserialize(&self.pre_key.public_key)?)
+    pub fn public_key(&self) -> Result<PublicSwooshKey> {
+        Ok(PublicSwooshKey::deserialize(&self.pre_key.public_key)?)
     }
 
-    pub fn private_key(&self) -> Result<PrivateKey> {
-        Ok(PrivateKey::deserialize(&self.pre_key.private_key)?)
+    pub fn private_key(&self) -> Result<PrivateSwooshKey> {
+        Ok(PrivateSwooshKey::deserialize(&self.pre_key.private_key)?)
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>> {

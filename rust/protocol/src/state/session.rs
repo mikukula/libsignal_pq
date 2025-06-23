@@ -7,13 +7,14 @@ use std::result::Result;
 use std::time::{Duration, SystemTime};
 
 use prost::Message;
+use pswoosh::keys::PublicSwooshKey;
 use rand::{CryptoRng, Rng};
 use subtle::ConstantTimeEq;
 
 use crate::proto::storage::{session_structure, RecordStructure, SessionStructure};
 use crate::ratchet::{ChainKey, MessageKeyGenerator, RootKey};
 use crate::state::{KyberPreKeyId, PreKeyId, SignedPreKeyId};
-use crate::{consts, kem, IdentityKey, KeyPair, PrivateKey, PublicKey, SignalProtocolError};
+use crate::{consts, kem, IdentityKey, KeyPair, PrivateKey, PublicKey, SignalProtocolError, SwooshPreKeyId};
 
 /// A distinct error type to keep from accidentally propagating deserialization errors.
 #[derive(Debug)]
@@ -436,14 +437,14 @@ impl SessionState {
 
     pub(crate) fn set_unacknowledged_pre_key_message(
         &mut self,
-        pre_key_id: Option<PreKeyId>,
-        signed_ec_pre_key_id: SignedPreKeyId,
-        base_key: &PublicKey,
+        pre_key_id: Option<SwooshPreKeyId>,
+        signed_ec_pre_key_id: SwooshPreKeyId,
+        base_key: &PublicSwooshKey,
         now: SystemTime,
     ) {
         let signed_ec_pre_key_id: u32 = signed_ec_pre_key_id.into();
         let pending = session_structure::PendingPreKey {
-            pre_key_id: pre_key_id.map(PreKeyId::into),
+            pre_key_id: pre_key_id.map(SwooshPreKeyId::into),
             signed_pre_key_id: signed_ec_pre_key_id as i32,
             base_key: base_key.serialize().to_vec(),
             timestamp: now

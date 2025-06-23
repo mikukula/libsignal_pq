@@ -5,6 +5,7 @@
 
 use std::time::SystemTime;
 
+use pswoosh::keys::SwooshKeyPair;
 use rand::{CryptoRng, Rng};
 
 use crate::ratchet::{AliceSignalProtocolParameters, BobSignalProtocolParameters};
@@ -162,6 +163,7 @@ pub async fn process_prekey_bundle<R: Rng + CryptoRng>(
     use_pq_ratchet: ratchet::UsePQRatchet,
 ) -> Result<()> {
     let their_identity_key = bundle.identity_key()?;
+    let is_alice = true; // Alice is the one processing the prekey bundle of Bob
 
     if !identity_store
         .is_trusted_identity(remote_address, their_identity_key, Direction::Sending)
@@ -195,7 +197,7 @@ pub async fn process_prekey_bundle<R: Rng + CryptoRng>(
         .await?
         .unwrap_or_else(SessionRecord::new_fresh);
 
-    let our_base_key_pair = KeyPair::generate(&mut csprng);
+    let our_base_key_pair = SwooshKeyPair::generate(is_alice);
     let their_signed_prekey = bundle.signed_pre_key_public()?;
 
     let their_one_time_prekey_id = bundle.pre_key_id()?;

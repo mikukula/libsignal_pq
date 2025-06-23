@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 
+use pswoosh::keys::{PublicSwooshKey, SwooshKeyPair};
+
 use crate::{kem, IdentityKey, IdentityKeyPair, KeyPair, PublicKey};
 
 #[derive(Clone, Copy)]
@@ -23,12 +25,12 @@ impl From<bool> for UsePQRatchet {
 
 pub struct AliceSignalProtocolParameters {
     our_identity_key_pair: IdentityKeyPair,
-    our_base_key_pair: KeyPair,
+    our_base_key_pair: SwooshKeyPair,
 
     their_identity_key: IdentityKey,
-    their_signed_pre_key: PublicKey,
-    their_one_time_pre_key: Option<PublicKey>,
-    their_ratchet_key: PublicKey,
+    their_signed_pre_key: PublicSwooshKey,
+    their_one_time_pre_key: Option<PublicSwooshKey>,
+    their_ratchet_key: PublicSwooshKey,
     their_kyber_pre_key: Option<kem::PublicKey>,
 
     use_pq_ratchet: UsePQRatchet,
@@ -37,10 +39,10 @@ pub struct AliceSignalProtocolParameters {
 impl AliceSignalProtocolParameters {
     pub fn new(
         our_identity_key_pair: IdentityKeyPair,
-        our_base_key_pair: KeyPair,
+        our_base_key_pair: SwooshKeyPair,
         their_identity_key: IdentityKey,
-        their_signed_pre_key: PublicKey,
-        their_ratchet_key: PublicKey,
+        their_signed_pre_key: PublicSwooshKey,
+        their_ratchet_key: PublicSwooshKey,
         use_pq_ratchet: UsePQRatchet,
     ) -> Self {
         Self {
@@ -55,11 +57,11 @@ impl AliceSignalProtocolParameters {
         }
     }
 
-    pub fn set_their_one_time_pre_key(&mut self, ec_public: PublicKey) {
+    pub fn set_their_one_time_pre_key(&mut self, ec_public: PublicSwooshKey) {
         self.their_one_time_pre_key = Some(ec_public);
     }
 
-    pub fn with_their_one_time_pre_key(mut self, ec_public: PublicKey) -> Self {
+    pub fn with_their_one_time_pre_key(mut self, ec_public: PublicSwooshKey) -> Self {
         self.set_their_one_time_pre_key(ec_public);
         self
     }
@@ -79,7 +81,7 @@ impl AliceSignalProtocolParameters {
     }
 
     #[inline]
-    pub fn our_base_key_pair(&self) -> &KeyPair {
+    pub fn our_base_key_pair(&self) -> &SwooshKeyPair {
         &self.our_base_key_pair
     }
 
@@ -89,12 +91,12 @@ impl AliceSignalProtocolParameters {
     }
 
     #[inline]
-    pub fn their_signed_pre_key(&self) -> &PublicKey {
+    pub fn their_signed_pre_key(&self) -> &PublicSwooshKey {
         &self.their_signed_pre_key
     }
 
     #[inline]
-    pub fn their_one_time_pre_key(&self) -> Option<&PublicKey> {
+    pub fn their_one_time_pre_key(&self) -> Option<&PublicSwooshKey> {
         self.their_one_time_pre_key.as_ref()
     }
 
@@ -104,7 +106,7 @@ impl AliceSignalProtocolParameters {
     }
 
     #[inline]
-    pub fn their_ratchet_key(&self) -> &PublicKey {
+    pub fn their_ratchet_key(&self) -> &PublicSwooshKey {
         &self.their_ratchet_key
     }
 

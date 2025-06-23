@@ -6,6 +6,7 @@
 use std::fmt;
 
 use prost::Message;
+use pswoosh::keys::SwooshKeyPair;
 
 use crate::proto::storage::PreKeyRecordStructure;
 use crate::{KeyPair, PrivateKey, PublicKey, Result, SignalProtocolError};
@@ -28,7 +29,7 @@ pub struct PreKeyRecord {
 }
 
 impl PreKeyRecord {
-    pub fn new(id: PreKeyId, key: &KeyPair) -> Self {
+    pub fn new(id: PreKeyId, key: &SwooshKeyPair) -> Self {
         let public_key = key.public_key.serialize().to_vec();
         let private_key = key.private_key.serialize().to_vec();
         Self {

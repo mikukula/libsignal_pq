@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 libsignal-protocol = { path = "../protocol" }
+pswoosh = { path = "../pswoosh" }
 rand = "0.9"
 hex = "0.4"
 tokio = { version = "1.0", features = ["full"] }
@@ -12,3 +13,7 @@ tokio = { version = "1.0", features = ["full"] }
 [[bin]]
 name = "communication"
 path = "src/communication.rs"
+
+[[bin]]
+name = "communication_classic"
+path = "src/communication_classic.rs"

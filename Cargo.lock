@@ -2829,6 +2829,7 @@ dependencies = [
  "proptest",
  "prost",
  "prost-build",
+ "pswoosh",
  "rand 0.9.0",
  "rand_core 0.9.3",
  "rayon",
@@ -2848,6 +2849,7 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "libsignal-protocol",
+ "pswoosh",
  "rand 0.9.0",
  "tokio",
 ]
@@ -3908,8 +3910,12 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "criterion",
+ "derive_more 0.99.19",
+ "displaydoc",
  "getrandom 0.2.15",
+ "rand 0.8.5",
  "sha3",
+ "subtle",
 ]
 
 [[package]]

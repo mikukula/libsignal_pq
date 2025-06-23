@@ -70,8 +70,8 @@ pub async fn create_pre_key_bundle<R: Rng + CryptoRng>(
     store: &mut dyn ProtocolStore,
     mut csprng: &mut R,
 ) -> Result<PreKeyBundle, SignalProtocolError> {
-    let pre_key_pair = KeyPair::generate(&mut csprng);
-    let signed_pre_key_pair = KeyPair::generate(&mut csprng);
+    let pre_key_pair = SwooshKeyPair::generate(true);
+    let signed_pre_key_pair = SwooshKeyPair::generate(true);
     let kyber_pre_key_pair = kem::KeyPair::generate(kem::KeyType::Kyber1024, &mut csprng);
 
     let signed_pre_key_public = signed_pre_key_pair.public_key.serialize();

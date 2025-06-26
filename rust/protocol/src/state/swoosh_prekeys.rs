@@ -47,7 +47,6 @@ impl SwooshPreKeyRecord {
 
 impl SwooshPreKeyRecord {
     pub fn generate(
-        swoosh_key_type: pswoosh::keys::SwooshKeyType,
         id: SwooshPreKeyId,
         signing_key: &PrivateKey,
     ) -> Result<SwooshPreKeyRecord> {

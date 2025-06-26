@@ -15,5 +15,25 @@ name = "communication"
 path = "src/communication.rs"
 
 [[bin]]
-name = "communication_classic"
-path = "src/communication_classic.rs"
+name = "communication_no_pq"
+path = "src/communication_no_pq.rs"
+
+[[bin]]
+name = "communication_swoosh"
+path = "src/communication_swoosh.rs"
+
+[[bin]]
+name = "communication_debug"
+path = "src/communication_debug.rs"
+
+[[bin]]
+name = "stack_overflow_test"
+path = "src/stack_overflow_test.rs"
+
+[[bin]]
+name = "traditional_ratchet_test"
+path = "src/traditional_ratchet_test.rs"
+
+[[bin]]
+name = "key_test"
+path = "src/key_test.rs"

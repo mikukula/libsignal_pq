@@ -7,14 +7,14 @@ use std::result::Result;
 use std::time::{Duration, SystemTime};
 
 use prost::Message;
-use pswoosh::keys::PublicSwooshKey;
+use pswoosh::keys::{PrivateSwooshKey, PublicSwooshKey, SwooshKeyPair};
 use rand::{CryptoRng, Rng};
 use subtle::ConstantTimeEq;
 
 use crate::proto::storage::{session_structure, RecordStructure, SessionStructure};
 use crate::ratchet::{ChainKey, MessageKeyGenerator, RootKey};
-use crate::state::{KyberPreKeyId, PreKeyId, SignedPreKeyId};
-use crate::{consts, kem, IdentityKey, KeyPair, PrivateKey, PublicKey, SignalProtocolError, SwooshPreKeyId};
+use crate::state::{KyberPreKeyId, PreKeyId, SignedPreKeyId, SwooshPreKeyId};
+use crate::{consts, kem, IdentityKey, KeyPair, PrivateKey, PublicKey, SignalProtocolError};
 
 /// A distinct error type to keep from accidentally propagating deserialization errors.
 #[derive(Debug)]
@@ -39,6 +39,7 @@ pub(crate) struct UnacknowledgedPreKeyMessageItems<'a> {
     base_key: PublicKey,
     kyber_pre_key_id: Option<KyberPreKeyId>,
     kyber_ciphertext: Option<&'a [u8]>,
+    swoosh_pre_key_id: Option<SwooshPreKeyId>,
     timestamp: SystemTime,
 }
 
@@ -48,6 +49,7 @@ impl<'a> UnacknowledgedPreKeyMessageItems<'a> {
         signed_pre_key_id: SignedPreKeyId,
         base_key: PublicKey,
         pending_kyber_pre_key: Option<&'a session_structure::PendingKyberPreKey>,
+        swoosh_pre_key_id: Option<SwooshPreKeyId>,
         timestamp: SystemTime,
     ) -> Self {
         let (kyber_pre_key_id, kyber_ciphertext) = pending_kyber_pre_key
@@ -59,6 +61,7 @@ impl<'a> UnacknowledgedPreKeyMessageItems<'a> {
             base_key,
             kyber_pre_key_id,
             kyber_ciphertext,
+            swoosh_pre_key_id,
             timestamp,
         }
     }
@@ -81,6 +84,10 @@ impl<'a> UnacknowledgedPreKeyMessageItems<'a> {
 
     pub(crate) fn kyber_ciphertext(&self) -> Option<&'a [u8]> {
         self.kyber_ciphertext
+    }
+
+    pub(crate) fn swoosh_pre_key_id(&self) -> Option<SwooshPreKeyId> {
+        self.swoosh_pre_key_id
     }
 
     pub(crate) fn timestamp(&self) -> SystemTime {
@@ -117,10 +124,12 @@ impl SessionState {
                 receiver_chains: vec![],
                 pending_pre_key: None,
                 pending_kyber_pre_key: None,
+                pending_swoosh_pre_key: None,
                 remote_registration_id: 0,
                 local_registration_id: 0,
                 alice_base_key: alice_base_key.serialize().into_vec(),
                 pq_ratchet_state,
+                is_alice: false, // Default value, will be set appropriately by calling code
             },
         }
     }
@@ -209,6 +218,27 @@ impl SessionState {
         }
     }
 
+    pub(crate) fn sender_ratchet_swoosh_private_key(&self) -> Result<PrivateSwooshKey, InvalidSessionError> {
+        match self.session.sender_chain {
+            None => Err(InvalidSessionError("missing sender chain")),
+            Some(ref c) => PrivateSwooshKey::deserialize(&c.sender_swoosh_key_private)
+                .map_err(|_| InvalidSessionError("invalid sender chain private ratchet key")),
+        }
+    }
+
+    //THIS IS A PLACEHOLDER FUNCTIONALITY TO BE COMPLETED LATER
+    pub(crate) fn sender_ratchet_swoosh_public_key(&self) -> Result<PublicSwooshKey, InvalidSessionError> {
+        
+        match self.session.sender_chain {
+            None => Err(InvalidSessionError("missing sender chain")),
+            Some(ref c) => {
+                PublicSwooshKey::deserialize(&c.sender_swoosh_key_public)
+                .map_err(|_| InvalidSessionError("invalid sender chain swoosh key"))
+            }
+        }   
+        
+    }
+
     pub fn has_usable_sender_chain(&self, now: SystemTime) -> Result<bool, InvalidSessionError> {
         if self.session.sender_chain.is_none() {
             return Ok(false);
@@ -271,6 +301,43 @@ impl SessionState {
         }
     }
 
+    pub(crate) fn get_receiver_swoosh_chain(
+        &self,
+        sender: &PublicSwooshKey,
+    ) -> Result<Option<(session_structure::Chain, usize)>, InvalidSessionError> {
+        for (idx, chain) in self.session.receiver_chains.iter().enumerate() {
+            // Check if this chain has a SWOOSH key
+            if !chain.sender_swoosh_key_public.is_empty() {
+                let chain_swoosh_key = PublicSwooshKey::deserialize(&chain.sender_swoosh_key_public)
+                    .map_err(|_| InvalidSessionError("invalid receiver chain swoosh key"))?;
+
+                if &chain_swoosh_key == sender {
+                    return Ok(Some((chain.clone(), idx)));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    pub(crate) fn get_receiver_swoosh_chain_key(
+        &self,
+        sender: &PublicSwooshKey,
+    ) -> Result<Option<ChainKey>, InvalidSessionError> {
+        match self.get_receiver_swoosh_chain(sender)? {
+            None => Ok(None),
+            Some((chain, _)) => match chain.chain_key {
+                None => Err(InvalidSessionError("missing receiver swoosh chain key")),
+                Some(c) => {
+                    let chain_key_bytes = c.key[..]
+                        .try_into()
+                        .map_err(|_| InvalidSessionError("invalid receiver swoosh chain key"))?;
+                    Ok(Some(ChainKey::new(chain_key_bytes, c.index)))
+                }
+            },
+        }
+    }
+
     pub(crate) fn add_receiver_chain(&mut self, sender: &PublicKey, chain_key: &ChainKey) {
         let chain_key = session_structure::chain::ChainKey {
             index: chain_key.index(),
@@ -280,6 +347,8 @@ impl SessionState {
         let chain = session_structure::Chain {
             sender_ratchet_key: sender.serialize().to_vec(),
             sender_ratchet_key_private: vec![],
+            sender_swoosh_key_public: vec![],
+            sender_swoosh_key_private: vec![],
             chain_key: Some(chain_key),
             message_keys: vec![],
         };
@@ -302,15 +371,29 @@ impl SessionState {
         self
     }
 
+    pub(crate) fn with_receiver_swoosh_chain(mut self, sender: &PublicSwooshKey, chain_key: &ChainKey) -> Self {
+        self.add_receiver_swoosh_chain(sender, chain_key);
+        self
+    }
+
     pub(crate) fn set_sender_chain(&mut self, sender: &KeyPair, next_chain_key: &ChainKey) {
         let chain_key = session_structure::chain::ChainKey {
             index: next_chain_key.index(),
             key: next_chain_key.key().to_vec(),
         };
 
+        // Preserve existing Swoosh keys if they exist
+        let (existing_swoosh_public, existing_swoosh_private) = if let Some(ref current_chain) = self.session.sender_chain {
+            (current_chain.sender_swoosh_key_public.clone(), current_chain.sender_swoosh_key_private.clone())
+        } else {
+            (vec![], vec![])
+        };
+
         let new_chain = session_structure::Chain {
             sender_ratchet_key: sender.public_key.serialize().to_vec(),
             sender_ratchet_key_private: sender.private_key.serialize().to_vec(),
+            sender_swoosh_key_public: existing_swoosh_public,
+            sender_swoosh_key_private: existing_swoosh_private,
             chain_key: Some(chain_key),
             message_keys: vec![],
         };
@@ -320,6 +403,11 @@ impl SessionState {
 
     pub(crate) fn with_sender_chain(mut self, sender: &KeyPair, next_chain_key: &ChainKey) -> Self {
         self.set_sender_chain(sender, next_chain_key);
+        self
+    }
+
+    pub(crate) fn with_sender_swoosh_chain(mut self, sender: &SwooshKeyPair, next_chain_key: &ChainKey) -> Self {
+        self.set_sender_swoosh_chain(sender, next_chain_key);
         self
     }
 
@@ -358,6 +446,8 @@ impl SessionState {
             None => session_structure::Chain {
                 sender_ratchet_key: vec![],
                 sender_ratchet_key_private: vec![],
+                sender_swoosh_key_public: vec![],
+                sender_swoosh_key_private: vec![],
                 chain_key: Some(chain_key),
                 message_keys: vec![],
             },
@@ -376,6 +466,32 @@ impl SessionState {
         counter: u32,
     ) -> Result<Option<MessageKeyGenerator>, InvalidSessionError> {
         if let Some(mut chain_and_index) = self.get_receiver_chain(sender)? {
+            let message_key_idx = chain_and_index
+                .0
+                .message_keys
+                .iter()
+                .position(|m| m.index == counter);
+
+            if let Some(position) = message_key_idx {
+                let message_key = chain_and_index.0.message_keys.remove(position);
+                let keys =
+                    MessageKeyGenerator::from_pb(message_key).map_err(InvalidSessionError)?;
+
+                // Update with message key removed
+                self.session.receiver_chains[chain_and_index.1] = chain_and_index.0;
+                return Ok(Some(keys));
+            }
+        }
+
+        Ok(None)
+    }
+
+    pub(crate) fn get_message_swoosh_keys(
+        &mut self,
+        sender: &PublicSwooshKey,
+        counter: u32,
+    ) -> Result<Option<MessageKeyGenerator>, InvalidSessionError> {
+        if let Some(mut chain_and_index) = self.get_receiver_swoosh_chain(sender)? {
             let message_key_idx = chain_and_index
                 .0
                 .message_keys
@@ -416,6 +532,26 @@ impl SessionState {
         Ok(())
     }
 
+    pub(crate) fn set_message_swoosh_keys(
+        &mut self,
+        sender: &PublicSwooshKey,
+        message_keys: MessageKeyGenerator,
+    ) -> Result<(), InvalidSessionError> {
+        let chain_and_index = self
+            .get_receiver_swoosh_chain(sender)?
+            .expect("called set_message_keys for a non-existent chain");
+        let mut updated_chain = chain_and_index.0;
+        updated_chain.message_keys.insert(0, message_keys.into_pb());
+
+        if updated_chain.message_keys.len() > consts::MAX_MESSAGE_KEYS {
+            updated_chain.message_keys.pop();
+        }
+
+        self.session.receiver_chains[chain_and_index.1] = updated_chain;
+
+        Ok(())
+    }
+
     pub(crate) fn set_receiver_chain_key(
         &mut self,
         sender: &PublicKey,
@@ -435,16 +571,35 @@ impl SessionState {
         Ok(())
     }
 
+    pub(crate) fn set_receiver_chain_swoosh_key(
+        &mut self,
+        sender: &PublicSwooshKey,
+        chain_key: &ChainKey,
+    ) -> Result<(), InvalidSessionError> {
+        let chain_and_index = self
+            .get_receiver_swoosh_chain(sender)?
+            .expect("called set_receiver_chain_key for a non-existent chain");
+        let mut updated_chain = chain_and_index.0;
+        updated_chain.chain_key = Some(session_structure::chain::ChainKey {
+            index: chain_key.index(),
+            key: chain_key.key().to_vec(),
+        });
+
+        self.session.receiver_chains[chain_and_index.1] = updated_chain;
+
+        Ok(())
+    }
+
     pub(crate) fn set_unacknowledged_pre_key_message(
         &mut self,
-        pre_key_id: Option<SwooshPreKeyId>,
-        signed_ec_pre_key_id: SwooshPreKeyId,
-        base_key: &PublicSwooshKey,
+        pre_key_id: Option<PreKeyId>,
+        signed_ec_pre_key_id: SignedPreKeyId,
+        base_key: &PublicKey,
         now: SystemTime,
     ) {
         let signed_ec_pre_key_id: u32 = signed_ec_pre_key_id.into();
         let pending = session_structure::PendingPreKey {
-            pre_key_id: pre_key_id.map(SwooshPreKeyId::into),
+            pre_key_id: pre_key_id.map(PreKeyId::into),
             signed_pre_key_id: signed_ec_pre_key_id as i32,
             base_key: base_key.serialize().to_vec(),
             timestamp: now
@@ -475,6 +630,15 @@ impl SessionState {
         pending.pre_key_id = signed_kyber_pre_key_id.into();
     }
 
+    pub(crate) fn set_unacknowledged_swoosh_pre_key_id(
+        &mut self,
+        swoosh_pre_key_id: SwooshPreKeyId,
+    ) {
+        self.session.pending_swoosh_pre_key = Some(session_structure::PendingSwooshPreKey {
+            pre_key_id: swoosh_pre_key_id.into(),
+        });
+    }
+
     pub(crate) fn unacknowledged_pre_key_message_items(
         &self,
     ) -> Result<Option<UnacknowledgedPreKeyMessageItems>, InvalidSessionError> {
@@ -485,6 +649,7 @@ impl SessionState {
                 PublicKey::deserialize(&pending_pre_key.base_key)
                     .map_err(|_| InvalidSessionError("invalid pending PreKey message base key"))?,
                 self.session.pending_kyber_pre_key.as_ref(),
+                self.session.pending_swoosh_pre_key.as_ref().map(|p| p.pre_key_id.into()),
                 SystemTime::UNIX_EPOCH + Duration::from_secs(pending_pre_key.timestamp),
             )))
         } else {
@@ -505,16 +670,19 @@ impl SessionState {
             receiver_chains: _receiver_chains,
             pending_pre_key: _pending_pre_key,
             pending_kyber_pre_key: _pending_kyber_pre_key,
+            pending_swoosh_pre_key: _pending_swoosh_pre_key,
             remote_registration_id: _remote_registration_id,
             local_registration_id: _local_registration_id,
             alice_base_key: _alice_base_key,
             pq_ratchet_state: _pq_ratchet_state,
+            is_alice: _is_alice,
         } = &self.session;
         // ####### IMPORTANT #######
         // Don't forget to clean up new pending fields.
         // ####### IMPORTANT #######
         self.session.pending_pre_key = None;
         self.session.pending_kyber_pre_key = None;
+        self.session.pending_swoosh_pre_key = None;
     }
 
     pub(crate) fn set_remote_registration_id(&mut self, registration_id: u32) {
@@ -560,6 +728,59 @@ impl SessionState {
 
     pub(crate) fn pq_ratchet_state(&self) -> &spqr::SerializedState {
         &self.session.pq_ratchet_state
+    }
+
+    pub(crate) fn set_sender_swoosh_chain(&mut self, sender: &SwooshKeyPair, next_chain_key: &ChainKey) {
+        let chain_key = session_structure::chain::ChainKey {
+            index: next_chain_key.index(),
+            key: next_chain_key.key().to_vec(),
+        };
+
+        // Preserve existing regular ECDH keys if they exist
+        let (existing_ratchet_public, existing_ratchet_private) = if let Some(ref current_chain) = self.session.sender_chain {
+            (current_chain.sender_ratchet_key.clone(), current_chain.sender_ratchet_key_private.clone())
+        } else {
+            (vec![], vec![])
+        };
+
+        let new_chain = session_structure::Chain {
+            sender_ratchet_key: existing_ratchet_public,
+            sender_ratchet_key_private: existing_ratchet_private,
+            sender_swoosh_key_public: sender.public_key().serialize().to_vec(),
+            sender_swoosh_key_private: sender.private_key().serialize().to_vec(),
+            chain_key: Some(chain_key),
+            message_keys: vec![],
+        };
+
+        self.session.sender_chain = Some(new_chain);
+    }
+
+    pub(crate) fn add_receiver_swoosh_chain(&mut self, sender: &PublicSwooshKey, chain_key: &ChainKey) {
+        let chain_key = session_structure::chain::ChainKey {
+            index: chain_key.index(),
+            key: chain_key.key().to_vec(),
+        };
+
+        let chain = session_structure::Chain {
+            sender_ratchet_key: vec![], // Empty for Swoosh-only chains
+            sender_ratchet_key_private: vec![],
+            sender_swoosh_key_public: sender.serialize().to_vec(),
+            sender_swoosh_key_private: vec![], // Receiver doesn't have private key
+            chain_key: Some(chain_key),
+            message_keys: vec![],
+        };
+
+        self.session.receiver_chains.push(chain);
+
+        if self.session.receiver_chains.len() > consts::MAX_RECEIVER_CHAINS {
+            log::info!(
+                "Trimming excessive receiver_chain for session with base key {}, chain count: {}",
+                self.sender_ratchet_key_for_logging()
+                    .unwrap_or_else(|e| format!("<error: {}>", e.0)),
+                self.session.receiver_chains.len()
+            );
+            self.session.receiver_chains.remove(0);
+        }
     }
 }
 

@@ -25,7 +25,7 @@ pub fn test_in_memory_protocol_store() -> Result<InMemSignalProtocolStore, Signa
     // Valid registration IDs fit in 14 bits.
     let registration_id: u8 = csprng.random();
 
-    InMemSignalProtocolStore::new(identity_key, registration_id as u32)
+    InMemSignalProtocolStore::new(identity_key, registration_id as u32, true)
 }
 
 pub async fn encrypt(
@@ -60,6 +60,7 @@ pub async fn decrypt(
         &mut store.pre_key_store,
         &store.signed_pre_key_store,
         &mut store.kyber_pre_key_store,
+        &mut store.swoosh_pre_key_store,
         &mut csprng,
         use_pq_ratchet,
     )
@@ -70,8 +71,8 @@ pub async fn create_pre_key_bundle<R: Rng + CryptoRng>(
     store: &mut dyn ProtocolStore,
     mut csprng: &mut R,
 ) -> Result<PreKeyBundle, SignalProtocolError> {
-    let pre_key_pair = SwooshKeyPair::generate(true);
-    let signed_pre_key_pair = SwooshKeyPair::generate(true);
+    let pre_key_pair = KeyPair::generate(&mut csprng);
+    let signed_pre_key_pair = KeyPair::generate(&mut csprng);
     let kyber_pre_key_pair = kem::KeyPair::generate(kem::KeyType::Kyber1024, &mut csprng);
 
     let signed_pre_key_public = signed_pre_key_pair.public_key.serialize();
@@ -156,9 +157,12 @@ pub fn initialize_sessions_v3() -> Result<(SessionRecord, SessionRecord), Signal
     let alice_params = AliceSignalProtocolParameters::new(
         alice_identity,
         alice_base_key,
+        None, // our swoosh key pair is not used here
         *bob_identity.identity_key(),
         bob_base_key.public_key,
         bob_ephemeral_key.public_key,
+        None, // no swoosh pre key
+        None, // no swoosh ratchet key
         UsePQRatchet::No,
     );
 
@@ -169,6 +173,7 @@ pub fn initialize_sessions_v3() -> Result<(SessionRecord, SessionRecord), Signal
         bob_base_key,
         None,
         bob_ephemeral_key,
+        None,
         None,
         *alice_identity.identity_key(),
         alice_base_key.public_key,
@@ -196,9 +201,12 @@ pub fn initialize_sessions_v4() -> Result<(SessionRecord, SessionRecord), Signal
     let alice_params = AliceSignalProtocolParameters::new(
         alice_identity,
         alice_base_key,
+        None, // our swoosh key pair is not used here
         *bob_identity.identity_key(),
         bob_base_key.public_key,
         bob_ephemeral_key.public_key,
+        None, // no swoosh pre key
+        None, // no swoosh ratchet key
         UsePQRatchet::No,
     )
     .with_their_kyber_pre_key(&bob_kyber_key.public_key);
@@ -217,6 +225,7 @@ pub fn initialize_sessions_v4() -> Result<(SessionRecord, SessionRecord), Signal
         bob_base_key,
         None,
         bob_ephemeral_key,
+        None,
         Some(bob_kyber_key),
         *alice_identity.identity_key(),
         alice_base_key.public_key,
@@ -265,7 +274,7 @@ impl TestStoreBuilder {
         // Valid registration IDs fit in 14 bits.
         let registration_id: u8 = rng.random();
 
-        let store = InMemSignalProtocolStore::new(identity_key, registration_id as u32)
+        let store = InMemSignalProtocolStore::new(identity_key, registration_id as u32, true)
             .expect("can create store");
         Self {
             rng,

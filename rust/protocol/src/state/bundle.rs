@@ -5,8 +5,6 @@
 
 use std::clone::Clone;
 
-use pswoosh::keys::PublicSwooshKey;
-
 use crate::state::{PreKeyId, SignedPreKeyId};
 use crate::{kem, DeviceId, IdentityKey, KyberPreKeyId, PublicKey, Result, SignalProtocolError, SwooshPreKeyId};
 
@@ -68,15 +66,18 @@ impl SwooshPreKey {
 pub struct PreKeyBundleContent {
     pub registration_id: Option<u32>,
     pub device_id: Option<DeviceId>,
-    pub pre_key_id: Option<SwooshPreKeyId>,
-    pub pre_key_public: Option<PublicSwooshKey>,
-    pub ec_pre_key_id: Option<SwooshPreKeyId>,
-    pub ec_pre_key_public: Option<PublicSwooshKey>,
+    pub pre_key_id: Option<PreKeyId>,
+    pub pre_key_public: Option<PublicKey>,
+    pub ec_pre_key_id: Option<SignedPreKeyId>,
+    pub ec_pre_key_public: Option<PublicKey>,
     pub ec_pre_key_signature: Option<Vec<u8>>,
     pub identity_key: Option<IdentityKey>,
     pub kyber_pre_key_id: Option<KyberPreKeyId>,
     pub kyber_pre_key_public: Option<kem::PublicKey>,
     pub kyber_pre_key_signature: Option<Vec<u8>>,
+    pub swoosh_pre_key_id: Option<SwooshPreKeyId>,
+    pub swoosh_pre_key_public: Option<pswoosh::keys::PublicSwooshKey>,
+    pub swoosh_pre_key_signature: Option<Vec<u8>>,
 }
 
 impl From<PreKeyBundle> for PreKeyBundleContent {
@@ -99,6 +100,15 @@ impl From<PreKeyBundle> for PreKeyBundleContent {
                 .kyber_pre_key
                 .as_ref()
                 .map(|kyber| kyber.signature.clone()),
+            swoosh_pre_key_id: bundle.swoosh_pre_key.as_ref().map(|swoosh| swoosh.id),
+            swoosh_pre_key_public: bundle
+                .swoosh_pre_key
+                .as_ref()
+                .map(|swoosh| swoosh.public_key.clone()),
+            swoosh_pre_key_signature: bundle
+                .swoosh_pre_key
+                .as_ref()
+                .map(|swoosh| swoosh.signature.clone()),
         }
     }
 }
@@ -154,22 +164,23 @@ impl TryFrom<PreKeyBundleContent> for PreKeyBundle {
 pub struct PreKeyBundle {
     registration_id: u32,
     device_id: DeviceId,
-    pre_key_id: Option<SwooshPreKeyId>,
-    pre_key_public: Option<PublicSwooshKey>,
-    ec_signed_pre_key: SwooshPreKey,
+    pre_key_id: Option<PreKeyId>,
+    pre_key_public: Option<PublicKey>,
+    ec_signed_pre_key: SignedPreKey,
     identity_key: IdentityKey,
     // Optional to support older clients
     // TODO: remove optionality once the transition is over
     kyber_pre_key: Option<KyberPreKey>,
+    swoosh_pre_key: Option<SwooshPreKey>,
 }
 
 impl PreKeyBundle {
     pub fn new(
         registration_id: u32,
         device_id: DeviceId,
-        pre_key: Option<(SwooshPreKeyId, PublicSwooshKey)>,
-        signed_pre_key_id: SwooshPreKeyId,
-        signed_pre_key_public: PublicSwooshKey,
+        pre_key: Option<(PreKeyId, PublicKey)>,
+        signed_pre_key_id: SignedPreKeyId,
+        signed_pre_key_public: PublicKey,
         signed_pre_key_signature: Vec<u8>,
         identity_key: IdentityKey,
     ) -> Result<Self> {
@@ -178,7 +189,7 @@ impl PreKeyBundle {
             Some((id, key)) => (Some(id), Some(key)),
         };
 
-        let ec_signed_pre_key = SwooshPreKey::new(
+        let ec_signed_pre_key = SignedPreKey::new(
             signed_pre_key_id,
             signed_pre_key_public,
             signed_pre_key_signature,
@@ -192,6 +203,7 @@ impl PreKeyBundle {
             ec_signed_pre_key,
             identity_key,
             kyber_pre_key: None,
+            swoosh_pre_key: None,
         })
     }
 
@@ -205,6 +217,16 @@ impl PreKeyBundle {
         self
     }
 
+    pub fn with_swoosh_pre_key(
+        mut self,
+        pre_key_id: SwooshPreKeyId,
+        public_key: pswoosh::keys::PublicSwooshKey,
+        signature: Vec<u8>,
+    ) -> Self {
+        self.swoosh_pre_key = Some(SwooshPreKey::new(pre_key_id, public_key, signature));
+        self
+    }
+
     pub fn registration_id(&self) -> Result<u32> {
         Ok(self.registration_id)
     }
@@ -213,19 +235,19 @@ impl PreKeyBundle {
         Ok(self.device_id)
     }
 
-    pub fn pre_key_id(&self) -> Result<Option<SwooshPreKeyId>> {
+    pub fn pre_key_id(&self) -> Result<Option<PreKeyId>> {
         Ok(self.pre_key_id)
     }
 
-    pub fn pre_key_public(&self) -> Result<Option<PublicSwooshKey>> {
+    pub fn pre_key_public(&self) -> Result<Option<PublicKey>> {
         Ok(self.pre_key_public)
     }
 
-    pub fn signed_pre_key_id(&self) -> Result<SwooshPreKeyId> {
+    pub fn signed_pre_key_id(&self) -> Result<SignedPreKeyId> {
         Ok(self.ec_signed_pre_key.id)
     }
 
-    pub fn signed_pre_key_public(&self) -> Result<PublicSwooshKey> {
+    pub fn signed_pre_key_public(&self) -> Result<PublicKey> {
         Ok(self.ec_signed_pre_key.public_key)
     }
 
@@ -255,6 +277,28 @@ impl PreKeyBundle {
     pub fn kyber_pre_key_signature(&self) -> Result<Option<&[u8]>> {
         Ok(self
             .kyber_pre_key
+            .as_ref()
+            .map(|pre_key| pre_key.signature.as_ref()))
+    }
+
+    pub fn has_swoosh_pre_key(&self) -> bool {
+        self.swoosh_pre_key.is_some()
+    }
+
+    pub fn swoosh_pre_key_id(&self) -> Result<Option<SwooshPreKeyId>> {
+        Ok(self.swoosh_pre_key.as_ref().map(|pre_key| pre_key.id))
+    }
+
+    pub fn swoosh_pre_key_public(&self) -> Result<Option<&pswoosh::keys::PublicSwooshKey>> {
+        Ok(self
+            .swoosh_pre_key
+            .as_ref()
+            .map(|pre_key| &pre_key.public_key))
+    }
+
+    pub fn swoosh_pre_key_signature(&self) -> Result<Option<&[u8]>> {
+        Ok(self
+            .swoosh_pre_key
             .as_ref()
             .map(|pre_key| pre_key.signature.as_ref()))
     }

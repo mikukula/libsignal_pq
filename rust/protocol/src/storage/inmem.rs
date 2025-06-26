@@ -15,7 +15,9 @@ use uuid::Uuid;
 
 use crate::storage::traits::{self, IdentityChange};
 use crate::{
-    IdentityKey, IdentityKeyPair, KyberPreKeyId, KyberPreKeyRecord, PreKeyId, PreKeyRecord, SwooshPreKeyRecordUnsigned, ProtocolAddress, Result, SenderKeyRecord, SessionRecord, SignalProtocolError, SignedPreKeyId, SignedPreKeyRecord, SwooshPreKeyId, SwooshPreKeyRecord
+    IdentityKey, IdentityKeyPair, KyberPreKeyId, KyberPreKeyRecord, PreKeyId, PreKeyRecord,
+    ProtocolAddress, Result, SenderKeyRecord, SessionRecord, SignalProtocolError, SignedPreKeyId,
+    SignedPreKeyRecord, SwooshPreKeyId, SwooshPreKeyRecord,
 };
 
 /// Reference implementation of [traits::IdentityKeyStore].
@@ -252,7 +254,6 @@ impl traits::KyberPreKeyStore for InMemKyberPreKeyStore {
 #[derive(Clone)]
 pub struct InMemSwooshPreKeyStore {
     swoosh_pre_keys: HashMap<SwooshPreKeyId, SwooshPreKeyRecord>,
-    swoosh_unsigned_pre_keys: HashMap<SwooshPreKeyId, SwooshPreKeyRecordUnsigned>,
 }
 
 impl InMemSwooshPreKeyStore {
@@ -260,7 +261,6 @@ impl InMemSwooshPreKeyStore {
     pub fn new() -> Self {
         Self {
             swoosh_pre_keys: HashMap::new(),
-            swoosh_unsigned_pre_keys: HashMap::new(),
         }
     }
 
@@ -297,31 +297,6 @@ impl traits::SwooshPreKeyStore for InMemSwooshPreKeyStore {
     }
 
     async fn mark_swoosh_pre_key_used(&mut self, _swoosh_prekey_id: SwooshPreKeyId) -> Result<()> {
-        Ok(())
-    }
-}
-
-#[async_trait(?Send)]
-impl traits::SwooshUnsignedPreKeyStore for InMemSwooshPreKeyStore {
-    async fn get_unsigned_swoosh_pre_key(&self, swoosh_prekey_id: SwooshPreKeyId) -> Result<SwooshPreKeyRecordUnsigned> {
-        Ok(self
-            .swoosh_unsigned_pre_keys
-            .get(&swoosh_prekey_id)
-            .ok_or(SignalProtocolError::InvalidSwooshPreKeyId)?
-            .clone())
-    }
-
-    async fn save_unsigned_swoosh_pre_key(
-        &mut self,
-        swoosh_prekey_id: SwooshPreKeyId,
-        record: &SwooshPreKeyRecordUnsigned,
-    ) -> Result<()> {
-        self.swoosh_unsigned_pre_keys
-            .insert(swoosh_prekey_id, record.to_owned());
-        Ok(())
-    }
-
-    async fn mark_unsigned_swoosh_pre_key_used(&mut self, _swoosh_prekey_id: SwooshPreKeyId) -> Result<()> {
         Ok(())
     }
 }
@@ -595,31 +570,6 @@ impl traits::SwooshPreKeyStore for InMemSignalProtocolStore {
     async fn mark_swoosh_pre_key_used(&mut self, swoosh_prekey_id: SwooshPreKeyId) -> Result<()> {
         self.swoosh_pre_key_store
             .mark_swoosh_pre_key_used(swoosh_prekey_id)
-            .await
-    }
-}
-
-#[async_trait(?Send)]
-impl traits::SwooshUnsignedPreKeyStore for InMemSignalProtocolStore {
-    async fn get_unsigned_swoosh_pre_key(&self, swoosh_prekey_id: SwooshPreKeyId) -> Result<SwooshPreKeyRecordUnsigned> {
-        self.swoosh_pre_key_store
-            .get_unsigned_swoosh_pre_key(swoosh_prekey_id)
-            .await
-    }
-
-    async fn save_unsigned_swoosh_pre_key(
-        &mut self,
-        swoosh_prekey_id: SwooshPreKeyId,
-        record: &SwooshPreKeyRecordUnsigned,
-    ) -> Result<()> {
-        self.swoosh_pre_key_store
-            .save_unsigned_swoosh_pre_key(swoosh_prekey_id, record)
-            .await
-    }
-
-    async fn mark_unsigned_swoosh_pre_key_used(&mut self, swoosh_prekey_id: SwooshPreKeyId) -> Result<()> {
-        self.swoosh_pre_key_store
-            .mark_unsigned_swoosh_pre_key_used(swoosh_prekey_id)
             .await
     }
 }

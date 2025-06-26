@@ -14,7 +14,7 @@ use crate::state::{
     KyberPreKeyId, KyberPreKeyRecord, PreKeyId, PreKeyRecord, SessionRecord, SignedPreKeyId,
     SignedPreKeyRecord,
 };
-use crate::{IdentityKey, IdentityKeyPair, SwooshPreKeyRecordUnsigned, ProtocolAddress, SwooshPreKeyId, SwooshPreKeyRecord};
+use crate::{IdentityKey, IdentityKeyPair, ProtocolAddress, SwooshPreKeyId, SwooshPreKeyRecord};
 
 // TODO: consider moving this enum into utils.rs?
 /// Each Signal message can be considered to have exactly two participants, a sender and receiver.
@@ -136,12 +136,15 @@ pub trait KyberPreKeyStore {
     async fn mark_kyber_pre_key_used(&mut self, kyber_prekey_id: KyberPreKeyId) -> Result<()>;
 }
 
+/// Interface for storing signed Swoosh pre-keys downloaded from a server.
+///
+/// NB: libsignal makes no distinction between one-time and last-resort pre-keys.
 #[async_trait(?Send)]
 pub trait SwooshPreKeyStore {
-    /// Look up the signed kyber pre-key corresponding to `kyber_prekey_id`.
+    /// Look up the signed swoosh pre-key corresponding to `swoosh_prekey_id`.
     async fn get_swoosh_pre_key(&self, swoosh_prekey_id: SwooshPreKeyId) -> Result<SwooshPreKeyRecord>;
 
-    /// Set the entry for `kyber_prekey_id` to the value of `record`.
+    /// Set the entry for `swoosh_prekey_id` to the value of `record`.
     async fn save_swoosh_pre_key(
         &mut self,
         swoosh_prekey_id: SwooshPreKeyId,
@@ -151,23 +154,6 @@ pub trait SwooshPreKeyStore {
     /// Mark the entry for `swoosh_prekey_id` as "used".
     /// This would mean different things for one-time and last-resort Swoosh keys.
     async fn mark_swoosh_pre_key_used(&mut self, swoosh_prekey_id: SwooshPreKeyId) -> Result<()>;
-}
-
-#[async_trait(?Send)]
-pub trait SwooshUnsignedPreKeyStore {
-    /// Look up the signed kyber pre-key corresponding to `kyber_prekey_id`.
-    async fn get_unsigned_swoosh_pre_key(&self, swoosh_prekey_id: SwooshPreKeyId) -> Result<SwooshPreKeyRecordUnsigned>;
-
-    /// Set the entry for `kyber_prekey_id` to the value of `record`.
-    async fn save_unsigned_swoosh_pre_key(
-        &mut self,
-        swoosh_prekey_id: SwooshPreKeyId,
-        record: &SwooshPreKeyRecordUnsigned,
-    ) -> Result<()>;
-
-    /// Mark the entry for `swoosh_prekey_id` as "used".
-    /// This would mean different things for one-time and last-resort Swoosh keys.
-    async fn mark_unsigned_swoosh_pre_key_used(&mut self, swoosh_prekey_id: SwooshPreKeyId) -> Result<()>;
 }
 
 /// Interface for a Signal client instance to store a session associated with another particular

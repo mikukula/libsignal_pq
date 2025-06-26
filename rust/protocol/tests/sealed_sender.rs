@@ -185,8 +185,9 @@ fn test_sealed_sender() -> Result<(), SignalProtocolError> {
             &server_key.private_key,
             &mut rng,
         )?;
-
+        
         let alice_ptext = vec![1, 2, 3, 23, 99];
+        
         let alice_ctext = sealed_sender_encrypt(
             &bob_uuid_address,
             &sender_cert,
@@ -197,7 +198,7 @@ fn test_sealed_sender() -> Result<(), SignalProtocolError> {
             &mut rng,
         )
         .await?;
-
+        
         let bob_ptext = sealed_sender_decrypt(
             &alice_ctext,
             &trust_root.public_key,
@@ -210,10 +211,11 @@ fn test_sealed_sender() -> Result<(), SignalProtocolError> {
             &mut bob_store.pre_key_store,
             &bob_store.signed_pre_key_store,
             &mut bob_store.kyber_pre_key_store,
+            &mut bob_store.swoosh_pre_key_store,
             UsePQRatchet::Yes,
         )
         .await?;
-
+        
         assert_eq!(bob_ptext.message, alice_ptext);
         assert_eq!(bob_ptext.sender_uuid, alice_uuid);
         assert_eq!(bob_ptext.sender_e164, Some(alice_e164));
@@ -244,6 +246,7 @@ fn test_sealed_sender() -> Result<(), SignalProtocolError> {
             &mut bob_store.pre_key_store,
             &bob_store.signed_pre_key_store,
             &mut bob_store.kyber_pre_key_store,
+            &mut bob_store.swoosh_pre_key_store,
             UsePQRatchet::Yes,
         )
         .await;
@@ -285,6 +288,7 @@ fn test_sealed_sender() -> Result<(), SignalProtocolError> {
             &mut bob_store.pre_key_store,
             &bob_store.signed_pre_key_store,
             &mut bob_store.kyber_pre_key_store,
+            &mut bob_store.swoosh_pre_key_store,
             UsePQRatchet::Yes,
         )
         .await;
@@ -523,6 +527,7 @@ fn test_sealed_sender_multi_recipient() -> Result<(), SignalProtocolError> {
             &mut bob_store.pre_key_store,
             &bob_store.signed_pre_key_store,
             &mut bob_store.kyber_pre_key_store,
+            &mut bob_store.swoosh_pre_key_store,
             UsePQRatchet::Yes,
         )
         .await?;
@@ -590,6 +595,7 @@ fn test_sealed_sender_multi_recipient() -> Result<(), SignalProtocolError> {
             &mut bob_store.pre_key_store,
             &bob_store.signed_pre_key_store,
             &mut bob_store.kyber_pre_key_store,
+            &mut bob_store.swoosh_pre_key_store,
             UsePQRatchet::Yes,
         )
         .await;
@@ -653,6 +659,7 @@ fn test_sealed_sender_multi_recipient() -> Result<(), SignalProtocolError> {
             &mut bob_store.pre_key_store,
             &bob_store.signed_pre_key_store,
             &mut bob_store.kyber_pre_key_store,
+            &mut bob_store.swoosh_pre_key_store,
             UsePQRatchet::Yes,
         )
         .await;
@@ -797,7 +804,7 @@ fn test_sealed_sender_multi_recipient_encrypt_with_bad_registration_id(
 
         let mut alice_store = support::test_in_memory_protocol_store()?;
         let mut bob_store =
-            InMemSignalProtocolStore::new(IdentityKeyPair::generate(&mut rng), 0x4000)?;
+            InMemSignalProtocolStore::new(IdentityKeyPair::generate(&mut rng), 0x4000, false)?;
 
         let alice_pubkey = *alice_store.get_identity_key_pair().await?.public_key();
 
@@ -911,7 +918,7 @@ fn test_decryption_error_in_sealed_sender() -> Result<(), SignalProtocolError> {
             UsePQRatchet::Yes,
         )
         .await?;
-
+        
         // Send one message to establish a session.
 
         let bob_first_message = message_encrypt(
@@ -932,6 +939,7 @@ fn test_decryption_error_in_sealed_sender() -> Result<(), SignalProtocolError> {
             &mut alice_store.pre_key_store,
             &alice_store.signed_pre_key_store,
             &mut alice_store.kyber_pre_key_store,
+            &mut alice_store.swoosh_pre_key_store,
             &mut rng,
             UsePQRatchet::Yes,
         )
@@ -1013,7 +1021,7 @@ fn test_decryption_error_in_sealed_sender() -> Result<(), SignalProtocolError> {
             extract_decryption_error_message_from_serialized_content(bob_plaintext.body())
                 .expect("present");
 
-        assert_eq!(bob_error_message.ratchet_key(), Some(original_ratchet_key));
+        assert_eq!(bob_error_message.ratchet_key(), original_ratchet_key);
         assert_eq!(bob_error_message.timestamp(), ORIGINAL_TIMESTAMP);
         assert_eq!(bob_error_message.device_id(), 5);
 

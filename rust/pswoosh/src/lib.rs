@@ -22,6 +22,7 @@ const RATE: usize = 136;
 
 pub type Matrix = [PolyVec; N];
 
+
 pub fn matrix_init() -> Matrix {
     [polyvec_init(); N]
 }

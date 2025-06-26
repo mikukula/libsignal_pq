@@ -1,4 +1,3 @@
-
 use libsignal_protocol::*;
 use rand::{rng, RngCore};
 use std::time::SystemTime;

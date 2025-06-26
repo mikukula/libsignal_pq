@@ -204,8 +204,6 @@ pub(crate) fn initialize_alice_session_pswoosh<R: Rng + CryptoRng>(
     let has_kyber = parameters.their_kyber_pre_key().is_some();
 
     let (root_key, chain_key, pqr_key) = derive_keys(has_kyber, &secrets);
-    println!("🔑 Alice original root_key first 8 bytes: {:02x?}", &root_key.key()[..8]);
-    println!("🔑 Alice original chain_key first 8 bytes: {:02x?}", &chain_key.key()[..8]);
 
     // Then use the updated root key to create Swoosh chain
     let (sending_swoosh_root_key, sending_swoosh_chain_key) = root_key.create_chain_swoosh(
@@ -315,8 +313,6 @@ pub(crate) fn initialize_bob_session_pswoosh(
     let has_kyber = parameters.our_kyber_pre_key_pair().is_some();
 
     let (root_key, chain_key, pqr_key) = derive_keys(has_kyber, &secrets);
-    println!("🔑 Bob root_key first 8 bytes: {:02x?}", &root_key.key()[..8]);
-    println!("🔑 Bob chain_key first 8 bytes: {:02x?}", &chain_key.key()[..8]);
 
     let self_session = local_identity == parameters.their_identity_key();
     let pqr_state = match parameters.use_pq_ratchet() {

@@ -23,17 +23,5 @@ name = "communication_swoosh"
 path = "src/communication_swoosh.rs"
 
 [[bin]]
-name = "communication_debug"
-path = "src/communication_debug.rs"
-
-[[bin]]
-name = "stack_overflow_test"
-path = "src/stack_overflow_test.rs"
-
-[[bin]]
-name = "traditional_ratchet_test"
-path = "src/traditional_ratchet_test.rs"
-
-[[bin]]
-name = "key_test"
-path = "src/key_test.rs"
+name = "async_swoosh_communication"
+path = "src/async_swoosh_communication.rs"

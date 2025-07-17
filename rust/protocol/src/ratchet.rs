@@ -172,6 +172,7 @@ pub(crate) fn initialize_alice_session_pswoosh<R: Rng + CryptoRng>(
 
     let our_base_private_key = parameters.our_base_key_pair().private_key;
     // These will be used if we integrate Swoosh into X3DH
+    /*
     let our_base_swoosh_private_key = parameters
         .our_base_swoosh_key_pair()
         .unwrap()
@@ -180,7 +181,7 @@ pub(crate) fn initialize_alice_session_pswoosh<R: Rng + CryptoRng>(
         .our_base_swoosh_key_pair()
         .unwrap()
         .public_key();
-    
+    */
     // Standard X3DH key agreements (same as original)
     secrets.extend_from_slice(
         &parameters
@@ -202,10 +203,11 @@ pub(crate) fn initialize_alice_session_pswoosh<R: Rng + CryptoRng>(
             .extend_from_slice(&our_base_private_key.calculate_agreement(their_one_time_prekey)?);
     }
     // For Swoosh integration with X3DH
+    /*
     secrets.extend_from_slice(
         &our_base_swoosh_private_key.derive_shared_secret(&our_base_swoosh_public_key, &parameters.their_swoosh_pre_key().unwrap(), is_alice)?
     );
-    
+    */
     let kyber_ciphertext = parameters
         .their_kyber_pre_key()
         .map(|kyber_public| {
@@ -310,6 +312,7 @@ pub(crate) fn initialize_bob_session_pswoosh(
         );
     }
     // If we integrate Swoosh into X3DH
+    /*
     secrets.extend_from_slice(
         &parameters
             .our_ratchet_swoosh_key_pair()
@@ -321,7 +324,7 @@ pub(crate) fn initialize_bob_session_pswoosh(
                 false,
             )?
     );
-    
+    */
     match (
         parameters.our_kyber_pre_key_pair(),
         parameters.their_kyber_ciphertext(),

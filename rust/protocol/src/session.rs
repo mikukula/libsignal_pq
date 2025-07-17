@@ -344,17 +344,16 @@ pub async fn process_swoosh_prekey_bundle<R: Rng + CryptoRng>(
     let our_base_swoosh_key_pair = Some(SwooshKeyPair::generate(identity_store.is_alice().await?));
     let their_swoosh_prekey = bundle.swoosh_pre_key_public()?;
     
-    // These are temporary placeholders as we don't use the base Diffie key pair in Swoosh
     let our_base_key_pair = KeyPair::generate(&mut csprng);
     let their_signed_prekey = bundle.signed_pre_key_public()?;
-    //
+    
     let their_one_time_prekey_id = bundle.pre_key_id()?;
 
     let our_identity_key_pair = identity_store.get_identity_key_pair().await?;
 
     let mut parameters = AliceSignalProtocolParameters::new(
         our_identity_key_pair,
-        our_base_key_pair, // our base Diffie key pair is not used here (replaced by Swoosh)
+        our_base_key_pair, 
         our_base_swoosh_key_pair,
         *their_identity_key,
         their_signed_prekey, // Placeholder

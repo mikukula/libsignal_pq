@@ -236,8 +236,8 @@ impl PrivateSwooshKey {
     }
 
     /// Derive shared secret using this private key and public keys
-    pub fn derive_shared_secret(&self, pub_key1: &PublicSwooshKey, pub_key2: &PublicSwooshKey, f: bool) -> Result<[u8; SYMBYTES], SwooshError> {
-        match (&self.key, &pub_key1.key, &pub_key2.key) {
+    pub fn derive_shared_secret(&self, our_public_key: &PublicSwooshKey, their_public_key: &PublicSwooshKey, f: bool) -> Result<[u8; SYMBYTES], SwooshError> {
+        match (&self.key, &our_public_key.key, &their_public_key.key) {
             (PrivateSwooshKeyData::PswooshPrivateKey(priv_key), 
              PublicSwooshKeyData::PswooshPublicKey(pk1), 
              PublicSwooshKeyData::PswooshPublicKey(pk2)) => {

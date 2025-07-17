@@ -1,2 +1,5 @@
 [env]
+
+# We observe certain tests cause a stack overflow when used with Swoosh keys - possibly due to their design not accounting for large keys
+# Normal communication examples don't suffer from this issue - uncomment the variable for testing and in case of stack overflows
 RUST_MIN_STACK = "320388608"

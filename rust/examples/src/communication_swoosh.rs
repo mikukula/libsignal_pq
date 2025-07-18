@@ -29,8 +29,8 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     let bob_address = ProtocolAddress::new("+14151112222".to_owned(), 1.into());
     
     // Generate identity key pairs for both parties
-    let alice_identity = IdentityKeyPair::generate(&mut csprng);
-    let bob_identity = IdentityKeyPair::generate(&mut csprng);
+    let alice_identity = IdentityKeyPair::generate_with_swoosh(&mut csprng, true);
+    let bob_identity = IdentityKeyPair::generate_with_swoosh(&mut csprng, false);
     
     println!("=== IDENTITY KEYS ===");
     println!("Alice Identity Public Key: {:?}", hex::encode(alice_identity.identity_key().serialize()));

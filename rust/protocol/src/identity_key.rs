@@ -147,7 +147,7 @@ impl IdentityKeyPair {
 
     /// Return the private Swoosh key that defines this identity.
     #[inline]
-    pub fn private_swooshkey(&self) -> Option<&PrivateSwooshKey> {
+    pub fn private_swoosh_key(&self) -> Option<&PrivateSwooshKey> {
         self.private_swoosh_key.as_ref()
     }
 

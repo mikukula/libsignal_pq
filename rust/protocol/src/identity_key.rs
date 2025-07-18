@@ -8,6 +8,7 @@
 #![warn(missing_docs)]
 
 use prost::Message;
+use pswoosh::keys::{PrivateSwooshKey, PublicSwooshKey, SwooshKeyPair};
 use rand::{CryptoRng, Rng};
 
 use crate::{proto, KeyPair, PrivateKey, PublicKey, Result, SignalProtocolError};
@@ -81,6 +82,8 @@ impl TryFrom<&[u8]> for IdentityKey {
 pub struct IdentityKeyPair {
     identity_key: IdentityKey,
     private_key: PrivateKey,
+    public_swoosh_identity_key: Option<PublicSwooshKey>,
+    private_swoosh_identity_key: Option<PrivateSwooshKey>,
 }
 
 impl IdentityKeyPair {
@@ -89,6 +92,8 @@ impl IdentityKeyPair {
         Self {
             identity_key,
             private_key,
+            public_swoosh_identity_key: None,
+            private_swoosh_identity_key: None,
         }
     }
 
@@ -99,7 +104,16 @@ impl IdentityKeyPair {
         Self {
             identity_key: keypair.public_key.into(),
             private_key: keypair.private_key,
+            public_swoosh_identity_key: None,
+            private_swoosh_identity_key: None,
         }
+    }
+
+    /// Generate Swoosh keys for this identity key pair.
+    pub fn generate_swoosh_keys(&mut self, is_alice: bool) {
+        let swoosh_key_pair = SwooshKeyPair::generate(is_alice);
+        self.public_swoosh_identity_key = Some(swoosh_key_pair.public_key);
+        self.private_swoosh_identity_key = Some(swoosh_key_pair.private_key);
     }
 
     /// Return the public identity of this user.
@@ -120,11 +134,33 @@ impl IdentityKeyPair {
         &self.private_key
     }
 
+    /// Return the public Swoosh key that defines this identity.
+    #[inline]
+    pub fn public_swoosh_identity_key(&self) -> Option<&PublicSwooshKey> {
+        self.public_swoosh_identity_key.as_ref()
+    }
+
+    /// Return the private Swoosh key that defines this identity.
+    #[inline]
+    pub fn private_swoosh_identity_key(&self) -> Option<&PrivateSwooshKey> {
+        self.private_swoosh_identity_key.as_ref()
+    }
+
     /// Return a byte slice which can later be deserialized with [`Self::try_from`].
     pub fn serialize(&self) -> Box<[u8]> {
         let structure = proto::storage::IdentityKeyPairStructure {
             public_key: self.identity_key.serialize().to_vec(),
             private_key: self.private_key.serialize().to_vec(),
+            public_swoosh_identity_key: self
+                .public_swoosh_identity_key
+                .as_ref()
+                .map(|k| k.serialize().to_vec())
+                .unwrap_or_default(),
+            private_swoosh_identity_key: self
+                .private_swoosh_identity_key
+                .as_ref()
+                .map(|k| k.serialize())
+                .unwrap_or_default(),
         };
 
         let result = structure.encode_to_vec();
@@ -157,6 +193,14 @@ impl TryFrom<&[u8]> for IdentityKeyPair {
         Ok(Self {
             identity_key: IdentityKey::try_from(&structure.public_key[..])?,
             private_key: PrivateKey::deserialize(&structure.private_key)?,
+            public_swoosh_identity_key: PublicSwooshKey::deserialize(
+                &structure.public_swoosh_identity_key,
+            )
+            .ok(),
+            private_swoosh_identity_key: PrivateSwooshKey::deserialize(
+                &structure.private_swoosh_identity_key,
+            )
+            .ok(),
         })
     }
 }
@@ -175,6 +219,8 @@ impl From<KeyPair> for IdentityKeyPair {
         Self {
             identity_key: value.public_key.into(),
             private_key: value.private_key,
+            public_swoosh_identity_key: None,
+            private_swoosh_identity_key: None,
         }
     }
 }

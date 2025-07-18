@@ -102,6 +102,8 @@ message SignedPreKeyRecordStructure {
 message IdentityKeyPairStructure {
   bytes public_key  = 1;
   bytes private_key = 2;
+  bytes public_swoosh_identity_key = 3;
+  bytes private_swoosh_identity_key = 4;
 }
 
 message SenderKeyStateStructure {

@@ -121,7 +121,7 @@ async fn async_main() -> Result<(), SignalProtocolError> {
         &bob_prekey_bundle,
         SystemTime::UNIX_EPOCH,
         &mut csprng,
-        UsePQRatchet::Yes,
+        UsePQRatchet::No,
     ).await?;
     
     println!("\n=== SESSION ESTABLISHED ===");
@@ -157,7 +157,7 @@ async fn async_main() -> Result<(), SignalProtocolError> {
                 &mut bob_store.kyber_pre_key_store,
                 &mut bob_store.swoosh_pre_key_store,
                 &mut csprng,
-                UsePQRatchet::Yes,
+                UsePQRatchet::No,
             ).await?
         },
         CiphertextMessage::SignalMessage(signal_msg) => {
@@ -285,7 +285,7 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("Communication established successfully!");
     println!("Total double ratchet turns: 4");
     println!("Messages exchanged: 4 (2 from Alice, 2 from Bob)");
-    println!("Using post-quantum cryptography (Kyber1024)");
+    println!("Using Kyber1024 for key exchange with normal ratchet");
     
     Ok(())
 }
@@ -295,13 +295,35 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn benchmark_pq_performance() -> Result<(), SignalProtocolError> {
+    async fn benchmark_kyber_performance() -> Result<(), SignalProtocolError> {
         println!("\n=== POST-QUANTUM CRYPTOGRAPHY PERFORMANCE BENCHMARKING ===");
         
         use std::time::{Duration, Instant};
         use std::collections::HashMap;
+        use std::mem;
         
         let mut csprng = rand::rng();
+
+        // Memory and storage tracking structures
+        #[derive(Debug, Clone, Default)]
+        struct MemoryStats {
+            key_size: usize,
+            ciphertext_size: usize,
+            signature_size: usize,
+            bundle_size: usize,
+            session_state_size: usize,
+            total_storage: usize,
+        }
+        
+        // Helper function to estimate object size in memory
+        fn estimate_size<T>(obj: &T) -> usize {
+            mem::size_of_val(obj)
+        }
+        
+        // Helper function to calculate serialized size
+        fn get_serialized_size(data: &[u8]) -> usize {
+            data.len()
+        }
         
         // Different message sizes to test
         let message_sizes = vec![
@@ -321,6 +343,7 @@ mod tests {
         
         // Storage for benchmark results
         let mut results: HashMap<String, Vec<Duration>> = HashMap::new();
+        let mut memory_results: HashMap<String, Vec<MemoryStats>> = HashMap::new();
         
         for (size_name, message_size) in &message_sizes {
             println!("\n--- Benchmarking with {} message size ({} bytes) ---", size_name, message_size);
@@ -376,6 +399,17 @@ mod tests {
                     .or_insert_with(Vec::new)
                     .push(kyber_keygen_time);
                 
+                // Memory analysis for Kyber key generation
+                let mut kyber_memory = MemoryStats::default();
+                kyber_memory.key_size = get_serialized_size(&bob_kyber_keypair.public_key.serialize());
+                kyber_memory.signature_size = get_serialized_size(&bob_kyber_prekey_signature);
+                kyber_memory.total_storage = kyber_memory.key_size + kyber_memory.signature_size + 
+                                           estimate_size(&bob_kyber_prekey);
+                
+                memory_results.entry(format!("{}_kyber_keygen", size_name))
+                    .or_insert_with(Vec::new)
+                    .push(kyber_memory);
+                
                 let bob_prekey_pair = KeyPair::generate(&mut csprng);
                 let bob_prekey_id = PreKeyId::from((iteration + 1) as u32);
                 let bob_prekey = PreKeyRecord::new(bob_prekey_id, &bob_prekey_pair);
@@ -410,12 +444,23 @@ mod tests {
                     &bob_prekey_bundle,
                     SystemTime::now(),
                     &mut csprng,
-                    UsePQRatchet::Yes,
+                    UsePQRatchet::No,
                 ).await?;
                 let prekey_bundle_time = start.elapsed();
                 results.entry(format!("{}_prekey_bundle_processing", size_name))
                     .or_insert_with(Vec::new)
                     .push(prekey_bundle_time);
+                
+                // Memory analysis for pre-key bundle processing
+                let mut bundle_memory = MemoryStats::default();
+                bundle_memory.bundle_size = estimate_size(&bob_prekey_bundle);
+                bundle_memory.key_size = get_serialized_size(&bob_kyber_keypair.public_key.serialize());
+                bundle_memory.signature_size = get_serialized_size(&bob_kyber_prekey_signature);
+                bundle_memory.total_storage = bundle_memory.bundle_size;
+                
+                memory_results.entry(format!("{}_prekey_bundle_processing", size_name))
+                    .or_insert_with(Vec::new)
+                    .push(bundle_memory);
                 
                 // BENCHMARK 2: First message encryption (after prekey bundle with PQ)
                 let start = Instant::now();
@@ -432,6 +477,15 @@ mod tests {
                     .or_insert_with(Vec::new)
                     .push(first_encrypt_time);
                 
+                // Memory analysis for first message encryption
+                let mut encrypt_memory = MemoryStats::default();
+                encrypt_memory.ciphertext_size = get_serialized_size(&alice_ciphertext.serialize());
+                encrypt_memory.total_storage = encrypt_memory.ciphertext_size + test_message.len();
+                
+                memory_results.entry(format!("{}_first_message_encrypt", size_name))
+                    .or_insert_with(Vec::new)
+                    .push(encrypt_memory);
+                
                 // BENCHMARK 3: Pre-key message decryption (with PQ)
                 let start = Instant::now();
                 let bob_plaintext = match &alice_ciphertext {
@@ -446,7 +500,7 @@ mod tests {
                             &mut bob_store.kyber_pre_key_store,
                             &mut bob_store.swoosh_pre_key_store,
                             &mut csprng,
-                            UsePQRatchet::Yes,
+                            UsePQRatchet::No,
                         ).await?
                     },
                     _ => return Err(SignalProtocolError::InvalidMessage(CiphertextMessageType::Plaintext, "Expected PreKeySignalMessage")),
@@ -456,10 +510,20 @@ mod tests {
                     .or_insert_with(Vec::new)
                     .push(prekey_decrypt_time);
                 
+                // Memory analysis for pre-key message decryption
+                let mut decrypt_memory = MemoryStats::default();
+                decrypt_memory.ciphertext_size = get_serialized_size(&alice_ciphertext.serialize());
+                decrypt_memory.session_state_size = estimate_size(&bob_store.session_store);
+                decrypt_memory.total_storage = decrypt_memory.ciphertext_size + bob_plaintext.len();
+                
+                memory_results.entry(format!("{}_prekey_message_decrypt", size_name))
+                    .or_insert_with(Vec::new)
+                    .push(decrypt_memory);
+                
                 // Verify decryption
                 assert_eq!(test_message.as_bytes(), bob_plaintext);
                 
-                // BENCHMARK 4: Subsequent message encryption (PQ ratchet)
+                // BENCHMARK 4: Subsequent message encryption (normal ratchet)
                 let start = Instant::now();
                 let bob_reply_ciphertext = message_encrypt(
                     test_message.as_bytes(),
@@ -474,7 +538,16 @@ mod tests {
                     .or_insert_with(Vec::new)
                     .push(subsequent_encrypt_time);
                 
-                // BENCHMARK 5: Normal signal message decryption (PQ ratchet)
+                // Memory analysis for subsequent message encryption
+                let mut sub_encrypt_memory = MemoryStats::default();
+                sub_encrypt_memory.ciphertext_size = get_serialized_size(&bob_reply_ciphertext.serialize());
+                sub_encrypt_memory.total_storage = sub_encrypt_memory.ciphertext_size + test_message.len();
+                
+                memory_results.entry(format!("{}_subsequent_message_encrypt", size_name))
+                    .or_insert_with(Vec::new)
+                    .push(sub_encrypt_memory);
+                
+                // BENCHMARK 5: Normal signal message decryption (normal ratchet)
                 let start = Instant::now();
                 let alice_received = match &bob_reply_ciphertext {
                     CiphertextMessage::SignalMessage(signal_msg) => {
@@ -493,12 +566,22 @@ mod tests {
                     .or_insert_with(Vec::new)
                     .push(signal_decrypt_time);
                 
+                // Memory analysis for normal signal message decryption
+                let mut signal_decrypt_memory = MemoryStats::default();
+                signal_decrypt_memory.ciphertext_size = get_serialized_size(&bob_reply_ciphertext.serialize());
+                signal_decrypt_memory.session_state_size = estimate_size(&alice_store.session_store);
+                signal_decrypt_memory.total_storage = signal_decrypt_memory.ciphertext_size + alice_received.len();
+                
+                memory_results.entry(format!("{}_signal_message_decrypt", size_name))
+                    .or_insert_with(Vec::new)
+                    .push(signal_decrypt_memory);
+                
                 // Verify decryption
                 assert_eq!(test_message.as_bytes(), alice_received);
                 
-                // BENCHMARK 6: Multiple ratchet turns for PQ performance stability
+                // BENCHMARK 6: Multiple ratchet turns for performance stability
                 for ratchet_turn in 0..5 {
-                    // Alice encrypts (PQ ratchet)
+                    // Alice encrypts (normal ratchet)
                     let start = Instant::now();
                     let alice_ratchet_msg = message_encrypt(
                         test_message.as_bytes(),
@@ -513,7 +596,7 @@ mod tests {
                         .or_insert_with(Vec::new)
                         .push(alice_ratchet_encrypt_time);
                     
-                    // Bob decrypts (PQ ratchet)
+                    // Bob decrypts (normal ratchet)
                     let start = Instant::now();
                     let _bob_ratchet_received = match &alice_ratchet_msg {
                         CiphertextMessage::SignalMessage(signal_msg) => {
@@ -587,10 +670,145 @@ mod tests {
             }
         }
         
-        // Display ratchet performance with PQ
-        println!("\n--- POST-QUANTUM RATCHET TURN PERFORMANCE ---");
+        // Memory and Storage Analysis
+        println!("\n=== POST-QUANTUM MEMORY AND STORAGE ANALYSIS ===");
+        
+        fn calculate_memory_stats(memories: &[MemoryStats]) -> (f64, f64, f64, f64, f64, f64, f64) {
+            let key_sizes: Vec<usize> = memories.iter().map(|m| m.key_size).collect();
+            let ciphertext_sizes: Vec<usize> = memories.iter().map(|m| m.ciphertext_size).collect();
+            let signature_sizes: Vec<usize> = memories.iter().map(|m| m.signature_size).collect();
+            let bundle_sizes: Vec<usize> = memories.iter().map(|m| m.bundle_size).collect();
+            let session_sizes: Vec<usize> = memories.iter().map(|m| m.session_state_size).collect();
+            let total_sizes: Vec<usize> = memories.iter().map(|m| m.total_storage).collect();
+            
+            let avg_key = if !key_sizes.is_empty() { key_sizes.iter().sum::<usize>() as f64 / key_sizes.len() as f64 } else { 0.0 };
+            let avg_ciphertext = if !ciphertext_sizes.is_empty() { ciphertext_sizes.iter().sum::<usize>() as f64 / ciphertext_sizes.len() as f64 } else { 0.0 };
+            let avg_signature = if !signature_sizes.is_empty() { signature_sizes.iter().sum::<usize>() as f64 / signature_sizes.len() as f64 } else { 0.0 };
+            let avg_bundle = if !bundle_sizes.is_empty() { bundle_sizes.iter().sum::<usize>() as f64 / bundle_sizes.len() as f64 } else { 0.0 };
+            let avg_session = if !session_sizes.is_empty() { session_sizes.iter().sum::<usize>() as f64 / session_sizes.len() as f64 } else { 0.0 };
+            let avg_total = if !total_sizes.is_empty() { total_sizes.iter().sum::<usize>() as f64 / total_sizes.len() as f64 } else { 0.0 };
+            let max_total = if !total_sizes.is_empty() { *total_sizes.iter().max().unwrap() as f64 } else { 0.0 };
+            
+            (avg_key, avg_ciphertext, avg_signature, avg_bundle, avg_session, avg_total, max_total)
+        }
+        
+        fn format_bytes(bytes: f64) -> String {
+            if bytes >= 1024.0 * 1024.0 {
+                format!("{:.2} MB", bytes / (1024.0 * 1024.0))
+            } else if bytes >= 1024.0 {
+                format!("{:.2} KB", bytes / 1024.0)
+            } else {
+                format!("{:.0} B", bytes)
+            }
+        }
+        
+        // Display memory usage by operation
+        for operation in &operations {
+            println!("\n--- {} MEMORY & STORAGE USAGE ---", operation.replace('_', " ").to_uppercase());
+            println!("{:<12} {:<15} {:<15} {:<15} {:<15} {:<15} {:<15} {:<15}", 
+                     "Size", "Avg Key", "Avg Cipher", "Avg Signature", "Avg Bundle", "Avg Session", "Avg Total", "Max Total");
+            println!("{}", "-".repeat(120));
+            
+            for (size_name, _) in &message_sizes {
+                let key = format!("{}_{}", size_name, operation);
+                if let Some(memories) = memory_results.get(&key) {
+                    let (avg_key, avg_ciphertext, avg_signature, avg_bundle, avg_session, avg_total, max_total) = 
+                        calculate_memory_stats(memories);
+                    
+                    println!("{:<12} {:<15} {:<15} {:<15} {:<15} {:<15} {:<15} {:<15}", 
+                             size_name, 
+                             format_bytes(avg_key),
+                             format_bytes(avg_ciphertext),
+                             format_bytes(avg_signature),
+                             format_bytes(avg_bundle),
+                             format_bytes(avg_session),
+                             format_bytes(avg_total),
+                             format_bytes(max_total));
+                }
+            }
+        }
+        
+        // Calculate and display storage overhead analysis
+        println!("\n--- STORAGE OVERHEAD ANALYSIS ---");
+        println!("{:<12} {:<15} {:<15} {:<15} {:<15}", "Message Size", "Plaintext", "Ciphertext", "Overhead", "Overhead %");
+        println!("{}", "-".repeat(75));
+        
+        for (size_name, message_size) in &message_sizes {
+            // Get average ciphertext size from first message encrypt
+            if let Some(memories) = memory_results.get(&format!("{}_first_message_encrypt", size_name)) {
+                let (_, avg_ciphertext, _, _, _, _, _) = calculate_memory_stats(memories);
+                let overhead = avg_ciphertext - (*message_size as f64);
+                let overhead_percent = (overhead / (*message_size as f64)) * 100.0;
+                
+                println!("{:<12} {:<15} {:<15} {:<15} {:<15.1}%", 
+                         size_name,
+                         format_bytes(*message_size as f64),
+                         format_bytes(avg_ciphertext),
+                         format_bytes(overhead),
+                         overhead_percent);
+            }
+        }
+        
+        // Display key size analysis
+        println!("\n--- POST-QUANTUM KEY SIZE ANALYSIS ---");
+        if let Some(memories) = memory_results.get("Tiny_kyber_keygen") {
+            let (avg_key, _, avg_signature, _, _, _, _) = calculate_memory_stats(memories);
+            println!("• Kyber1024 Public Key Size: {}", format_bytes(avg_key));
+            println!("• Kyber1024 Signature Size: {}", format_bytes(avg_signature));
+            println!("• Total Kyber Key Material: {}", format_bytes(avg_key + avg_signature));
+        }
+        
+        // Session state memory analysis
+        println!("\n--- SESSION STATE MEMORY USAGE ---");
+        for operation in &["prekey_message_decrypt", "signal_message_decrypt"] {
+            if let Some(memories) = memory_results.get(&format!("Tiny_{}", operation)) {
+                let (_, _, _, _, avg_session, _, _) = calculate_memory_stats(memories);
+                println!("• {} Session State: {}", 
+                         operation.replace('_', " ").replace("message ", "").to_uppercase(),
+                         format_bytes(avg_session));
+            }
+        }
+        
+        // Compare memory efficiency across message sizes
+        println!("\n--- MEMORY EFFICIENCY ANALYSIS ---");
+        println!("Efficiency = Message Size / Total Storage Used");
+        println!("{:<12} {:<15} {:<15} {:<15}", "Message Size", "Encrypt Eff.", "Decrypt Eff.", "Avg Efficiency");
+        println!("{}", "-".repeat(60));
+        
+        for (size_name, message_size) in &message_sizes {
+            let mut encrypt_eff = 0.0;
+            let mut decrypt_eff = 0.0;
+            
+            if let Some(memories) = memory_results.get(&format!("{}_first_message_encrypt", size_name)) {
+                let (_, _, _, _, _, avg_total, _) = calculate_memory_stats(memories);
+                if avg_total > 0.0 {
+                    encrypt_eff = (*message_size as f64) / avg_total;
+                }
+            }
+            
+            if let Some(memories) = memory_results.get(&format!("{}_signal_message_decrypt", size_name)) {
+                let (_, _, _, _, _, avg_total, _) = calculate_memory_stats(memories);
+                if avg_total > 0.0 {
+                    decrypt_eff = (*message_size as f64) / avg_total;
+                }
+            }
+            
+            let avg_efficiency = if encrypt_eff > 0.0 && decrypt_eff > 0.0 {
+                (encrypt_eff + decrypt_eff) / 2.0
+            } else if encrypt_eff > 0.0 {
+                encrypt_eff
+            } else {
+                decrypt_eff
+            };
+            
+            println!("{:<12} {:<15.3} {:<15.3} {:<15.3}", 
+                     size_name, encrypt_eff, decrypt_eff, avg_efficiency);
+        }
+        
+        // Display ratchet performance with normal ratchet
+        println!("\n--- RATCHET TURN PERFORMANCE (Normal Ratchet with Kyber KEM) ---");
         for ratchet_turn in 0..5 {
-            println!("\n  Ratchet Turn {} (Encrypt/Decrypt with PQ):", ratchet_turn);
+            println!("\n  Ratchet Turn {} (Encrypt/Decrypt with Normal Ratchet):", ratchet_turn);
             println!("  {:<12} {:<15} {:<15}", "Size", "Encrypt", "Decrypt");
             println!("  {}", "-".repeat(45));
             
@@ -655,9 +873,48 @@ mod tests {
             println!("• PQ pre-key bundle processing takes {:.2?} on average", bundle_mean);
         }
         
+        // Memory-specific insights
+        println!("\n=== MEMORY AND STORAGE INSIGHTS ===");
+        
+        // Calculate total memory overhead for different operations
+        for (size_name, message_size) in message_sizes.iter().take(1) { // Just show for one size to avoid repetition
+            if let Some(memories) = memory_results.get(&format!("{}_kyber_keygen", size_name)) {
+                let (avg_key, _, avg_signature, _, _, _, _) = calculate_memory_stats(memories);
+                println!("• Kyber1024 key generation requires {} key + {} signature = {} total", 
+                         format_bytes(avg_key), format_bytes(avg_signature), format_bytes(avg_key + avg_signature));
+            }
+            
+            if let Some(memories) = memory_results.get(&format!("{}_first_message_encrypt", size_name)) {
+                let (_, avg_ciphertext, _, _, _, _, _) = calculate_memory_stats(memories);
+                let overhead = avg_ciphertext - (*message_size as f64);
+                println!("• Message encryption adds {} overhead to {} plaintext ({:.1}% increase)", 
+                         format_bytes(overhead), format_bytes(*message_size as f64), 
+                         (overhead / (*message_size as f64)) * 100.0);
+            }
+        }
+        
+        // Calculate memory efficiency across all message sizes
+        let mut total_efficiency = 0.0;
+        let mut efficiency_count = 0;
+        for (size_name, message_size) in &message_sizes {
+            if let Some(memories) = memory_results.get(&format!("{}_first_message_encrypt", size_name)) {
+                let (_, _, _, _, _, avg_total, _) = calculate_memory_stats(memories);
+                if avg_total > 0.0 {
+                    let efficiency = (*message_size as f64) / avg_total;
+                    total_efficiency += efficiency;
+                    efficiency_count += 1;
+                }
+            }
+        }
+        
+        if efficiency_count > 0 {
+            let avg_efficiency = total_efficiency / efficiency_count as f64;
+            println!("• Average memory efficiency across all message sizes: {:.3} (higher is better)", avg_efficiency);
+        }
+        
         // Post-quantum specific insights
         println!("• Using Kyber1024 KEM for post-quantum key agreement");
-        println!("• Post-quantum ratchet provides quantum-resistant forward secrecy");
+        println!("• Normal ratchet with Kyber1024 KEM for key establishment");
         println!("• Larger key sizes and ciphertexts due to lattice-based cryptography");
         println!("• Enhanced security against quantum computer attacks");
         
@@ -665,10 +922,13 @@ mod tests {
         println!("• Kyber1024 public keys: ~1568 bytes");
         println!("• Kyber1024 ciphertexts: ~1568 bytes");
         println!("• Significant bandwidth overhead compared to classical ECDH");
+        println!("• Memory overhead varies significantly with message size");
+        println!("• Session state memory usage depends on ratchet state complexity");
         
         println!("\n🔐 Post-Quantum Cryptography Benchmarking completed!");
         println!("Total operations benchmarked: {}", results.len());
         println!("Total measurements taken: {}", results.values().map(|v| v.len()).sum::<usize>());
+        println!("Total memory measurements: {}", memory_results.values().map(|v| v.len()).sum::<usize>());
         println!("Quantum-resistant security level: NIST Level 5 (Kyber1024)");
         
         Ok(())

@@ -29,3 +29,7 @@ path = "src/communication_swoosh_pqxdh.rs"
 [[bin]]
 name = "async_swoosh_communication"
 path = "src/async_swoosh_communication.rs"
+
+[[bin]]
+name = "communication_kyber"
+path = "src/communication_kyber.rs"

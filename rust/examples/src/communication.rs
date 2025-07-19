@@ -58,7 +58,7 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("Signed Pre-Key Public: {:?}", hex::encode(bob_signed_prekey_pair.public_key.serialize()));
     println!("Signed Pre-Key Signature: {:?}", hex::encode(&bob_signed_prekey_signature));
     
-    // Generate Bob's Kyber pre-key (required for PQ ratchet)
+    // Generate Bob's Kyber pre-key
     let bob_kyber_keypair = kem::KeyPair::generate(kem::KeyType::Kyber1024, &mut csprng);
     let bob_kyber_prekey_id = KyberPreKeyId::from(1u32);
     let bob_kyber_prekey_signature = bob_identity

@@ -173,14 +173,15 @@ pub(crate) fn initialize_alice_session_pswoosh<R: Rng + CryptoRng>(
     let our_base_private_key = parameters.our_base_key_pair().private_key;
     // These will be used if we integrate Swoosh into X3DH
     /*
-    let our_base_swoosh_private_key = parameters
-        .our_base_swoosh_key_pair()
-        .unwrap()
-        .private_key();
-    let our_base_swoosh_public_key = parameters
-        .our_base_swoosh_key_pair()
-        .unwrap()
-        .public_key();
+    let our_identity_swoosh_private_key = parameters
+        .our_identity_key_pair()
+        .private_swoosh_key()
+        .unwrap();
+
+    let our_identity_swoosh_public_key = parameters
+        .our_identity_key_pair()
+        .public_swoosh_key()
+        .unwrap();
     */
     // Standard X3DH key agreements (same as original)
     secrets.extend_from_slice(
@@ -205,7 +206,7 @@ pub(crate) fn initialize_alice_session_pswoosh<R: Rng + CryptoRng>(
     // For Swoosh integration with X3DH
     /*
     secrets.extend_from_slice(
-        &our_base_swoosh_private_key.derive_shared_secret(&our_base_swoosh_public_key, &parameters.their_swoosh_pre_key().unwrap(), is_alice)?
+        &our_identity_swoosh_private_key.derive_shared_secret(&our_identity_swoosh_public_key, &parameters.their_identity_swoosh_key().unwrap(), is_alice)?
     );
     */
     let kyber_ciphertext = parameters
@@ -227,10 +228,10 @@ pub(crate) fn initialize_alice_session_pswoosh<R: Rng + CryptoRng>(
         &sending_swoosh_ratchet_key.private_key,
         is_alice,
     )?;
-
+    /*
     println!("🔑 Alice sending swoosh root key first 8 bytes: {:02x?}", &sending_swoosh_root_key.key()[..8]);
     println!("🔑 Alice sending swoosh chain key first 8 bytes: {:02x?}", &sending_swoosh_chain_key.key()[..8]);
-
+    */
     let self_session = local_identity == parameters.their_identity_key();
     let pqr_state = match parameters.use_pq_ratchet() {
         UsePQRatchet::Yes => spqr::initial_state(spqr::Params {

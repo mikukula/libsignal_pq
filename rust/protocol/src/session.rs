@@ -297,6 +297,7 @@ pub async fn process_swoosh_prekey_bundle<R: Rng + CryptoRng>(
     use_pq_ratchet: ratchet::UsePQRatchet,
 ) -> Result<()> {
     let their_identity_key = bundle.identity_key()?;
+    let their_identity_swoosh_key = bundle.identity_swoosh_key()?;
 
     if !identity_store
         .is_trusted_identity(remote_address, their_identity_key, Direction::Sending)
@@ -372,6 +373,10 @@ pub async fn process_swoosh_prekey_bundle<R: Rng + CryptoRng>(
 
     if let Some(swoosh_key) = bundle.swoosh_pre_key_public()? {
         parameters.set_their_swoosh_ratchet_key(*swoosh_key);
+    }
+
+    if let Some(swoosh_key) = their_identity_swoosh_key {
+        parameters.set_their_swoosh_pre_key(swoosh_key);
     }
 
     let mut session = ratchet::initialize_alice_session_pswoosh(&parameters, csprng)?;

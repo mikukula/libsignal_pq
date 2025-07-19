@@ -5,6 +5,8 @@
 
 use std::clone::Clone;
 
+use pswoosh::keys::PublicSwooshKey;
+
 use crate::state::{PreKeyId, SignedPreKeyId};
 use crate::{kem, DeviceId, IdentityKey, KyberPreKeyId, PublicKey, Result, SignalProtocolError, SwooshPreKeyId};
 
@@ -168,6 +170,7 @@ pub struct PreKeyBundle {
     pre_key_public: Option<PublicKey>,
     ec_signed_pre_key: SignedPreKey,
     identity_key: IdentityKey,
+    identity_swoosh_key: Option<PublicSwooshKey>,
     // Optional to support older clients
     // TODO: remove optionality once the transition is over
     kyber_pre_key: Option<KyberPreKey>,
@@ -202,6 +205,7 @@ impl PreKeyBundle {
             pre_key_public,
             ec_signed_pre_key,
             identity_key,
+            identity_swoosh_key: None,
             kyber_pre_key: None,
             swoosh_pre_key: None,
         })
@@ -224,6 +228,14 @@ impl PreKeyBundle {
         signature: Vec<u8>,
     ) -> Self {
         self.swoosh_pre_key = Some(SwooshPreKey::new(pre_key_id, public_key, signature));
+        self
+    }
+
+    pub fn with_identity_swoosh_key(
+        mut self,
+        public_key: PublicSwooshKey,
+    ) -> Self {
+        self.identity_swoosh_key = Some(public_key);
         self
     }
 
@@ -257,6 +269,10 @@ impl PreKeyBundle {
 
     pub fn identity_key(&self) -> Result<&IdentityKey> {
         Ok(&self.identity_key)
+    }
+
+    pub fn identity_swoosh_key(&self) -> Result<Option<&PublicSwooshKey>> {
+        Ok(self.identity_swoosh_key.as_ref())
     }
 
     pub fn has_kyber_pre_key(&self) -> bool {

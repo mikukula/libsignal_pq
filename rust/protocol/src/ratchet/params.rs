@@ -28,6 +28,7 @@ pub struct AliceSignalProtocolParameters {
     our_base_swoosh_key_pair: Option<SwooshKeyPair>,
 
     their_identity_key: IdentityKey,
+    their_identity_swoosh_key: Option<PublicSwooshKey>,
     their_signed_pre_key: PublicKey,
     their_one_time_pre_key: Option<PublicKey>,
     their_ratchet_key: PublicKey,
@@ -58,6 +59,7 @@ impl AliceSignalProtocolParameters {
             our_base_key_pair,
             our_base_swoosh_key_pair,
             their_identity_key,
+            their_identity_swoosh_key: None,
             their_signed_pre_key,
             their_one_time_pre_key: None,
             their_ratchet_key,
@@ -67,6 +69,10 @@ impl AliceSignalProtocolParameters {
             their_swoosh_ratchet_key,
             use_pq_ratchet,
         }
+    }
+
+    pub fn set_their_identity_swoosh_key(&mut self, public_key: PublicSwooshKey) {
+        self.their_identity_swoosh_key = Some(public_key);
     }
 
     pub fn set_their_one_time_pre_key(&mut self, ec_public: PublicKey) {
@@ -127,6 +133,11 @@ impl AliceSignalProtocolParameters {
     #[inline]
     pub fn their_identity_key(&self) -> &IdentityKey {
         &self.their_identity_key
+    }
+
+    #[inline]
+    pub fn their_identity_swoosh_key(&self) -> Option<&PublicSwooshKey> {
+        self.their_identity_swoosh_key.as_ref()
     }
 
     #[inline]

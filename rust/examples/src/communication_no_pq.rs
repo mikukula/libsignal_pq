@@ -305,6 +305,7 @@ mod tests {
             ("Medium", 4096),   // 4KB
             ("Large", 65536),   // 64KB
             ("XLarge", 1048576), // 1MB
+            ("XXLarge", 104857600), // 100MB
         ];
         
         let num_iterations = 100; // Number of iterations for each test
@@ -863,12 +864,6 @@ mod tests {
         }
         
         // Classic crypto specific memory insights
-        println!("• X25519 public keys: ~32 bytes");
-        println!("• ECDSA signatures: ~64 bytes");
-        println!("• Minimal bandwidth overhead compared to post-quantum alternatives");
-        println!("• Memory overhead varies predictably with message size");
-        println!("• Session state memory usage is compact and efficient");
-        
         println!("\n🎉 Classic Cryptography Benchmarking completed!");
         println!("Total operations benchmarked: {}", results.len());
         println!("Total measurements taken: {}", results.values().map(|v| v.len()).sum::<usize>());

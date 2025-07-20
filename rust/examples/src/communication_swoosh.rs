@@ -539,6 +539,7 @@ mod tests {
             ("Medium", 4096),   // 4KB
             ("Large", 65536),   // 64KB
             ("XLarge", 1048576), // 1MB
+            ("XXLarge", 104857600), // 100MB
         ];
         
         let num_iterations = 100; // Number of iterations for each test
@@ -1144,12 +1145,6 @@ mod tests {
         }
         
         // Post-quantum specific memory insights
-        println!("• Swoosh public keys: Large (~1KB+) due to lattice-based cryptography");
-        println!("• Significant bandwidth overhead compared to classic alternatives");
-        println!("• Memory overhead scales with message size but stabilizes for larger messages");
-        println!("• Session state includes both classic and post-quantum ratchet state");
-        println!("• Forward secrecy maintained through periodic Swoosh key rotation");
-        
         println!("\nTotal memory measurements: {}", memory_results.values().map(|v| v.len()).sum::<usize>());
         println!("Cryptography type: Hybrid (X25519 + Swoosh) with post-quantum security");
         

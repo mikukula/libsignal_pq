@@ -332,6 +332,7 @@ mod tests {
             ("Medium", 4096),   // 4KB
             ("Large", 65536),   // 64KB
             ("XLarge", 1048576), // 1MB
+            ("XXLarge", 104857600), // 100MB
         ];
         
         let num_iterations = 100; // Number of iterations for each test
@@ -912,19 +913,7 @@ mod tests {
             println!("• Average memory efficiency across all message sizes: {:.3} (higher is better)", avg_efficiency);
         }
         
-        // Post-quantum specific insights
-        println!("• Using Kyber1024 KEM for post-quantum key agreement");
-        println!("• Normal ratchet with Kyber1024 KEM for key establishment");
-        println!("• Larger key sizes and ciphertexts due to lattice-based cryptography");
-        println!("• Enhanced security against quantum computer attacks");
-        
         // Memory usage insights
-        println!("• Kyber1024 public keys: ~1568 bytes");
-        println!("• Kyber1024 ciphertexts: ~1568 bytes");
-        println!("• Significant bandwidth overhead compared to classical ECDH");
-        println!("• Memory overhead varies significantly with message size");
-        println!("• Session state memory usage depends on ratchet state complexity");
-        
         println!("\n🔐 Post-Quantum Cryptography Benchmarking completed!");
         println!("Total operations benchmarked: {}", results.len());
         println!("Total measurements taken: {}", results.values().map(|v| v.len()).sum::<usize>());

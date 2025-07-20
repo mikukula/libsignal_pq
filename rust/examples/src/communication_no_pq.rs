@@ -577,7 +577,7 @@ mod tests {
         // Calculate and display statistics
         println!("\n=== PERFORMANCE ANALYSIS RESULTS ===");
         
-        fn calculate_stats(times: &[Duration]) -> (Duration, Duration, Duration, Duration) {
+        fn calculate_stats(times: &[Duration]) -> (Duration, Duration, Duration, Duration, Duration, f64) {
             let mut sorted_times = times.to_vec();
             sorted_times.sort();
             
@@ -585,11 +585,27 @@ mod tests {
                 (times.iter().map(|d| d.as_nanos()).sum::<u128>() / times.len() as u128) as u64
             );
             
+            // Calculate standard deviation
+            let variance = times.iter()
+                .map(|d| {
+                    let diff = d.as_nanos() as i128 - mean.as_nanos() as i128;
+                    (diff * diff) as u128
+                })
+                .sum::<u128>() / times.len() as u128;
+            let std_dev = Duration::from_nanos((variance as f64).sqrt() as u64);
+            
+            // Calculate coefficient of variation (deviation percentage)
+            let dev_percentage = if mean.as_nanos() > 0 {
+                (std_dev.as_nanos() as f64 / mean.as_nanos() as f64) * 100.0
+            } else {
+                0.0
+            };
+            
             let median = sorted_times[times.len() / 2];
             let min = sorted_times[0];
             let max = sorted_times[times.len() - 1];
             
-            (mean, median, min, max)
+            (mean, median, min, max, std_dev, dev_percentage)
         }
         
         fn calculate_memory_stats(memories: &[MemoryStats]) -> (f64, f64, f64, f64, f64, f64, f64) {
@@ -632,13 +648,13 @@ mod tests {
         
         for operation in &operations {
             println!("\n--- {} ---", operation.replace('_', " ").to_uppercase());
-            println!("{:<12} {:<12} {:<12} {:<12} {:<12} {:<15}", "Size", "Mean", "Median", "Min", "Max", "Throughput");
-            println!("{}", "-".repeat(75));
+            println!("{:<12} {:<12} {:<12} {:<12} {:<12} {:<12} {:<12} {:<15}", "Size", "Mean", "Median", "Min", "Max", "Std Dev", "Dev %", "Throughput");
+            println!("{}", "-".repeat(105));
             
             for (size_name, message_size) in &message_sizes {
                 let key = format!("{}_{}", size_name, operation);
                 if let Some(times) = results.get(&key) {
-                    let (mean, median, min, max) = calculate_stats(times);
+                    let (mean, median, min, max, std_dev, dev_percentage) = calculate_stats(times);
                     
                     // Calculate throughput (MB/s for encryption/decryption operations)
                     let throughput = if operation.contains("encrypt") || operation.contains("decrypt") {
@@ -648,8 +664,8 @@ mod tests {
                         "N/A".to_string()
                     };
                     
-                    println!("{:<12} {:<12.2?} {:<12.2?} {:<12.2?} {:<12.2?} {:<15}", 
-                             size_name, mean, median, min, max, throughput);
+                    println!("{:<12} {:<12.2?} {:<12.2?} {:<12.2?} {:<12.2?} {:<12.2?} {:<12.1}% {:<15}", 
+                             size_name, mean, median, min, max, std_dev, dev_percentage, throughput);
                 }
             }
         }
@@ -666,8 +682,8 @@ mod tests {
                 let decrypt_key = format!("{}_ratchet_turn_{}_decrypt", size_name, ratchet_turn);
                 
                 if let (Some(encrypt_times), Some(decrypt_times)) = (results.get(&encrypt_key), results.get(&decrypt_key)) {
-                    let (encrypt_mean, _, _, _) = calculate_stats(encrypt_times);
-                    let (decrypt_mean, _, _, _) = calculate_stats(decrypt_times);
+                    let (encrypt_mean, _, _, _, _, _) = calculate_stats(encrypt_times);
+                    let (decrypt_mean, _, _, _, _, _) = calculate_stats(decrypt_times);
                     
                     println!("  {:<12} {:<15.2?} {:<15.2?}", size_name, encrypt_mean, decrypt_mean);
                 }
@@ -789,8 +805,8 @@ mod tests {
                 results.get(&format!("{}_prekey_message_decrypt", size_name)),
                 results.get(&format!("{}_signal_message_decrypt", size_name))
             ) {
-                let (prekey_mean, _, _, _) = calculate_stats(prekey_times);
-                let (signal_mean, _, _, _) = calculate_stats(signal_times);
+                let (prekey_mean, _, _, _, _, _) = calculate_stats(prekey_times);
+                let (signal_mean, _, _, _, _, _) = calculate_stats(signal_times);
                 let overhead = (prekey_mean.as_nanos() as f64 / signal_mean.as_nanos() as f64) - 1.0;
                 
                 println!("• {} messages: Pre-key decryption is {:.1}% slower than signal decryption", 
@@ -804,8 +820,8 @@ mod tests {
                 results.get(&format!("{}_subsequent_message_encrypt", size_name)),
                 results.get(&format!("{}_signal_message_decrypt", size_name))
             ) {
-                let (encrypt_mean, _, _, _) = calculate_stats(encrypt_times);
-                let (decrypt_mean, _, _, _) = calculate_stats(decrypt_times);
+                let (encrypt_mean, _, _, _, _, _) = calculate_stats(encrypt_times);
+                let (decrypt_mean, _, _, _, _, _) = calculate_stats(decrypt_times);
                 let ratio = encrypt_mean.as_nanos() as f64 / decrypt_mean.as_nanos() as f64;
                 
                 println!("• {} messages: Encryption is {:.1}x {} than decryption", 
@@ -815,7 +831,7 @@ mod tests {
         
         // Bundle processing cost
         if let Some(bundle_times) = results.get("Tiny_prekey_bundle_processing") {
-            let (bundle_mean, _, _, _) = calculate_stats(bundle_times);
+            let (bundle_mean, _, _, _, _, _) = calculate_stats(bundle_times);
             println!("• Pre-key bundle processing takes {:.2?} on average", bundle_mean);
         }
         

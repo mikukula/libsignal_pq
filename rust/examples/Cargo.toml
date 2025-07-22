@@ -33,3 +33,7 @@ path = "src/async_swoosh_communication.rs"
 [[bin]]
 name = "communication_kyber"
 path = "src/communication_kyber.rs"
+
+[[bin]]
+name = "benchmark_shared_secret"
+path = "src/benchmark_shared_secret.rs"

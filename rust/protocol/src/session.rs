@@ -342,10 +342,11 @@ pub async fn process_swoosh_prekey_bundle<R: Rng + CryptoRng>(
         .await?
         .unwrap_or_else(SessionRecord::new_fresh);
 
-    let our_base_swoosh_key_pair = Some(SwooshKeyPair::generate(identity_store.is_alice().await?));
     let their_swoosh_prekey = bundle.swoosh_pre_key_public()?;
     
     let our_base_key_pair = KeyPair::generate(&mut csprng);
+    let our_base_swoosh_key_pair = Some(SwooshKeyPair::generate(identity_store.is_alice().await?));
+
     let their_signed_prekey = bundle.signed_pre_key_public()?;
     
     let their_one_time_prekey_id = bundle.pre_key_id()?;

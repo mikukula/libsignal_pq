@@ -7,9 +7,8 @@ use std::time::SystemTime;
 fn main() -> Result<(), SignalProtocolError> {
     use std::thread;
     
-    // Create a thread with larger stack to run the async main
     let handle = thread::Builder::new()
-        .stack_size(100 * 1024 * 1024) // 32MB stack
+        .stack_size(100 * 1024 * 1024)
         .spawn(|| {
             tokio::runtime::Runtime::new()
                 .unwrap()
@@ -21,14 +20,11 @@ fn main() -> Result<(), SignalProtocolError> {
 }
 
 async fn async_main() -> Result<(), SignalProtocolError> {
-    // Initialize random number generator
     let mut csprng = rng();
     println!("=== SIGNAL PROTOCOL COMMUNICATION EXAMPLE (WITH SWOOSH POST-QUANTUM) ===");
-    // Create addresses for Alice and Bob
     let alice_address = ProtocolAddress::new("+14151111111".to_owned(), 1.into());
     let bob_address = ProtocolAddress::new("+14151112222".to_owned(), 1.into());
     
-    // Generate identity key pairs for both parties
     let alice_identity = IdentityKeyPair::generate(&mut csprng);
     let bob_identity = IdentityKeyPair::generate(&mut csprng);
     
@@ -36,11 +32,9 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("Alice Identity Public Key: {:?}", hex::encode(alice_identity.identity_key().serialize()));
     println!("Bob Identity Public Key: {:?}", hex::encode(bob_identity.identity_key().serialize()));
     
-    // Create in-memory stores for both parties
     let mut alice_store = InMemSignalProtocolStore::new(alice_identity, csprng.next_u32(), true)?;
     let mut bob_store = InMemSignalProtocolStore::new(bob_identity, csprng.next_u32(), false)?;
     
-    // Generate Bob's signed pre-key
     let bob_signed_prekey_pair = KeyPair::generate(&mut csprng);
     let bob_signed_prekey_id = SignedPreKeyId::from(1u32);
     let bob_signed_prekey_signature = bob_identity
@@ -54,7 +48,6 @@ async fn async_main() -> Result<(), SignalProtocolError> {
         &bob_signed_prekey_signature,
     );
 
-    // Generate Bob's Kyber pre-key
     let bob_kyber_keypair = kem::KeyPair::generate(kem::KeyType::Kyber1024, &mut csprng);
     let bob_kyber_prekey_id = KyberPreKeyId::from(1u32);
     let bob_kyber_prekey_signature = bob_identity
@@ -73,7 +66,6 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("Signed Pre-Key Public: {:?}", hex::encode(bob_signed_prekey_pair.public_key.serialize()));
     println!("Signed Pre-Key Signature: {:?}", hex::encode(&bob_signed_prekey_signature));
 
-    // Generate Bob's Swoosh pre-key (required for PQ ratchet)
     let bob_swoosh_key_pair = SwooshKeyPair::generate(false);
     let bob_swoosh_prekey_id = SwooshPreKeyId::from(1u32);
     let bob_swoosh_prekey_signature = bob_identity
@@ -98,7 +90,6 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     bob_store.save_swoosh_pre_key(bob_swoosh_prekey_id, &bob_swoosh_prekey).await?;
     bob_store.save_kyber_pre_key(bob_kyber_prekey_id, &bob_kyber_prekey).await?;
     
-    // Optional: Generate one-time pre-key for Bob
     let bob_prekey_pair = KeyPair::generate(&mut csprng);
     let bob_prekey_id = PreKeyId::from(1u32);
     let bob_prekey = PreKeyRecord::new(bob_prekey_id, &bob_prekey_pair);
@@ -109,9 +100,7 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     
     bob_store.save_pre_key(bob_prekey_id, &bob_prekey).await?;
 
-
     
-    // Create pre-key bundle for Bob with swoosh pre-key
     let bob_prekey_bundle = PreKeyBundle::new(
         bob_store.get_local_registration_id().await?,
         1.into(), // device_id
@@ -135,8 +124,6 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("\n=== PRE-KEY BUNDLE CREATED (WITH SWOOSH) ===");
     println!("Registration ID: {:?}", bob_store.get_local_registration_id().await?);
     
-    // Alice processes Bob's pre-key bundle to establish session WITH Swoosh 
-    // ====== CRITICAL POINT 1: Alice's Swoosh keys are established HERE ======
     process_swoosh_prekey_bundle(
         &bob_address,
         &mut alice_store.session_store,
@@ -152,11 +139,9 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("  At this point, Alice has generated her Swoosh ratchet keys");
     println!("  and can derive shared secrets with Bob's Swoosh pre-key");
     
-    // Verification: Alice should have an active session now
     let alice_session = alice_store.session_store.load_session(&bob_address).await?.unwrap();
     println!("✓ Alice has active session: {}", alice_session.has_usable_sender_chain(SystemTime::now()).unwrap_or(false));
     
-    // Alice encrypts a message to Bob
     let alice_message = "Hello Bob! This is Alice.";
     let alice_ciphertext = message_encrypt_swoosh(
         alice_message.as_bytes(),
@@ -172,11 +157,9 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("Ciphertext type: {:?}", alice_ciphertext.message_type());
     println!("Ciphertext length: {} bytes", alice_ciphertext.serialize().len());
     
-    // ====== CRITICAL POINT 2: Bob's Swoosh keys are established during message decryption ======
     let bob_plaintext = match &alice_ciphertext {
         CiphertextMessage::PreKeySignalMessage(prekey_msg) => {
             println!("\n=== DECRYPTING PRE-KEY MESSAGE ===");
-            println!("=== CRITICAL POINT 2: Bob will establish Swoosh keys NOW during decryption ===");
             
             let decrypted = message_decrypt_prekey(
                 prekey_msg,
@@ -195,7 +178,6 @@ async fn async_main() -> Result<(), SignalProtocolError> {
             println!("  Bob has processed Alice's pre-key message and established");
             println!("  his Swoosh ratchet keys and derived the shared secret");
             
-            // Verification: Bob should now have an active session
             let bob_session = bob_store.session_store.load_session(&alice_address).await?.unwrap();
             println!("✓ Bob has active session: {}", bob_session.has_usable_sender_chain(SystemTime::now()).unwrap_or(false));
             
@@ -217,7 +199,6 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     let decrypted_message = String::from_utf8(bob_plaintext).expect("Valid UTF-8");
     println!("Bob received: {}", decrypted_message);
     
-    // ====== VERIFICATION: Both parties now have established Swoosh keys ======
     println!("\n=== SWOOSH KEY ESTABLISHMENT VERIFICATION ===");
     
     // Both parties should have active sessions at this point
@@ -227,7 +208,6 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("✓ Alice session is usable: {}", alice_final_session.has_usable_sender_chain(SystemTime::now()).unwrap_or(false));
     println!("✓ Bob session is usable: {}", bob_final_session.has_usable_sender_chain(SystemTime::now()).unwrap_or(false));
     
-    // Now Bob can reply to Alice (session is established)
     let bob_reply = "Hello Alice! Nice to hear from you.";
     let bob_ciphertext = message_encrypt_swoosh(
         bob_reply.as_bytes(),
@@ -242,9 +222,7 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("Bob sent: {}", bob_reply);
     println!("Reply ciphertext type: {:?}", bob_ciphertext.message_type());
     println!("Reply ciphertext length: {} bytes", bob_ciphertext.serialize().len());
-    //println!("Encrypted reply: {:?}", hex::encode(bob_ciphertext.serialize()));
     
-    // Alice decrypts Bob's reply (should be SignalMessage after first exchange)
     let alice_received = match &bob_ciphertext {
         CiphertextMessage::SignalMessage(signal_msg) => {
             println!("\n=== ALICE DECRYPTING BOB'S REPLY ===");
@@ -262,7 +240,6 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     let alice_decrypted_reply = String::from_utf8(alice_received).expect("Valid UTF-8");
     println!("Alice received: {}", alice_decrypted_reply);
     
-    // Continue the conversation - Alice sends another message (Turn 3)
     let alice_second_message = "Thanks Bob! How's the Swoosh post-quantum cryptography working for you?";
     let alice_second_ciphertext = message_encrypt_swoosh(
         alice_second_message.as_bytes(),
@@ -277,9 +254,7 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("Alice sent: {}", alice_second_message);
     println!("Ciphertext type: {:?}", alice_second_ciphertext.message_type());
     println!("Ciphertext length: {} bytes", alice_second_ciphertext.serialize().len());
-    //println!("Encrypted message: {:?}", hex::encode(alice_second_ciphertext.serialize()));
     
-    // Bob decrypts Alice's second message
     let bob_second_plaintext = match &alice_second_ciphertext {
         CiphertextMessage::SignalMessage(signal_msg) => {
             println!("\n=== BOB DECRYPTING ALICE'S SECOND MESSAGE ===");
@@ -297,7 +272,6 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     let bob_decrypted_second = String::from_utf8(bob_second_plaintext).expect("Valid UTF-8");
     println!("Bob received: {}", bob_decrypted_second);
     
-    // Bob sends another reply (Turn 4)
     let bob_second_reply = "It's reliable! SWOOSH provides excellent post-quantum forward secrecy.";
     let bob_second_ciphertext = message_encrypt_swoosh(
         bob_second_reply.as_bytes(),
@@ -312,9 +286,7 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("Bob sent: {}", bob_second_reply);
     println!("Reply ciphertext type: {:?}", bob_second_ciphertext.message_type());
     println!("Reply ciphertext length: {} bytes", bob_second_ciphertext.serialize().len());
-    //println!("Encrypted reply: {:?}", hex::encode(bob_second_ciphertext.serialize()));
     
-    // Alice decrypts Bob's second reply
     let alice_second_received = match &bob_second_ciphertext {
         CiphertextMessage::SignalMessage(signal_msg) => {
             println!("\n=== ALICE DECRYPTING BOB'S SECOND REPLY ===");
@@ -348,10 +320,9 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
     use std::time::{Duration, Instant};
     use std::collections::HashMap;
     use std::mem;
-    
+
     let mut csprng = rand::rng();
 
-    // Memory and storage tracking structures
     #[derive(Debug, Clone, Default)]
     struct MemoryStats {
         key_size: usize,
@@ -364,17 +335,14 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
         total_storage: usize,
     }
     
-    // Helper function to estimate object size in memory
     fn estimate_size<T>(obj: &T) -> usize {
         mem::size_of_val(obj)
     }
     
-    // Helper function to calculate serialized size
     fn get_serialized_size(data: &[u8]) -> usize {
         data.len()
     }
     
-    // Different message sizes to test
     let message_sizes = vec![
         ("Tiny", 16),       // 16 bytes
         ("Small", 256),     // 256 bytes  
@@ -384,20 +352,18 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
         ("XXLarge", 104857600), // 100MB
     ];
     
-    let num_iterations = 100; // Number of iterations for each test
-    let num_key_pairs = 50;   // Number of different key pairs to test
+    let num_iterations = 100;
+    let num_key_pairs = 50;
     
     println!("Running {} iterations with {} different key pairs each", num_iterations, num_key_pairs);
     println!("Message sizes: {:?}", message_sizes.iter().map(|(name, size)| format!("{}: {} bytes", name, size)).collect::<Vec<_>>());
     
-    // Storage for benchmark results
     let mut results: HashMap<String, Vec<Duration>> = HashMap::new();
     let mut memory_results: HashMap<String, Vec<MemoryStats>> = HashMap::new();
     
     for (size_name, message_size) in &message_sizes {
         println!("\n--- Benchmarking with {} message size ({} bytes) ---", size_name, message_size);
         
-        // Generate test message of specified size
         let test_message = "A".repeat(*message_size);
         
         for iteration in 0..num_iterations {
@@ -405,7 +371,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                 println!("  Iteration {}/{}", iteration + 1, num_iterations);
             }
             
-            // Generate fresh key pairs for each iteration
             let alice_address = ProtocolAddress::new(format!("+1415111{:04}", iteration), 1.into());
             let bob_address = ProtocolAddress::new(format!("+1415222{:04}", iteration), 1.into());
             
@@ -415,7 +380,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
             let mut alice_store = InMemSignalProtocolStore::new(alice_identity, csprng.next_u32(), true)?;
             let mut bob_store = InMemSignalProtocolStore::new(bob_identity, csprng.next_u32(), false)?;
             
-            // Generate Bob's keys
             let bob_signed_prekey_pair = KeyPair::generate(&mut csprng);
             let bob_signed_prekey_id = SignedPreKeyId::from((iteration + 1) as u32);
             let bob_signed_prekey_signature = bob_identity
@@ -442,7 +406,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                 &bob_swoosh_prekey_signature,
             );
 
-            // Generate Bob's Kyber pre-key
             let bob_kyber_keypair = kem::KeyPair::generate(kem::KeyType::Kyber1024, &mut csprng);
             let bob_kyber_prekey_id = KyberPreKeyId::from(1u32);
             let bob_kyber_prekey_signature = bob_identity
@@ -466,7 +429,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
             bob_store.save_pre_key(bob_prekey_id, &bob_prekey).await?;
             bob_store.save_kyber_pre_key(bob_kyber_prekey_id, &bob_kyber_prekey).await?;
             
-            // Create pre-key bundle
             let bob_prekey_bundle = PreKeyBundle::new(
                 bob_store.get_local_registration_id().await?,
                 1.into(),
@@ -487,7 +449,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                 bob_kyber_prekey.signature().unwrap(),
             );
 
-            // BENCHMARK 1: Pre-key bundle processing
             let start = Instant::now();
             process_swoosh_prekey_bundle(
                 &bob_address,
@@ -503,7 +464,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                 .or_insert_with(Vec::new)
                 .push(prekey_bundle_time);
             
-            // Memory analysis for pre-key bundle processing
             let mut bundle_memory = MemoryStats::default();
             bundle_memory.bundle_size = estimate_size(&bob_prekey_bundle);
             bundle_memory.key_size = get_serialized_size(&bob_prekey.public_key()?.serialize());
@@ -531,8 +491,7 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
             results.entry(format!("{}_first_message_encrypt", size_name))
                 .or_insert_with(Vec::new)
                 .push(first_encrypt_time);
-            
-            // Memory analysis for first message encryption
+
             let mut encrypt_memory = MemoryStats::default();
             encrypt_memory.ciphertext_size = get_serialized_size(&alice_ciphertext.serialize());
             encrypt_memory.total_storage = encrypt_memory.ciphertext_size + test_message.len();
@@ -541,7 +500,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                 .or_insert_with(Vec::new)
                 .push(encrypt_memory);
             
-            // BENCHMARK 3: Pre-key message decryption
             let start = Instant::now();
             let bob_plaintext = match &alice_ciphertext {
                 CiphertextMessage::PreKeySignalMessage(prekey_msg) => {
@@ -565,7 +523,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                 .or_insert_with(Vec::new)
                 .push(prekey_decrypt_time);
             
-            // Memory analysis for pre-key message decryption
             let mut decrypt_memory = MemoryStats::default();
             decrypt_memory.ciphertext_size = get_serialized_size(&alice_ciphertext.serialize());
             decrypt_memory.session_state_size = estimate_size(&bob_store.session_store);
@@ -575,10 +532,8 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                 .or_insert_with(Vec::new)
                 .push(decrypt_memory);
             
-            // Verify decryption
             assert_eq!(test_message.as_bytes(), bob_plaintext);
             
-            // BENCHMARK 4: Subsequent message encryption (normal ratchet)
             let start = Instant::now();
             let bob_reply_ciphertext = message_encrypt_swoosh(
                 test_message.as_bytes(),
@@ -593,7 +548,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                 .or_insert_with(Vec::new)
                 .push(subsequent_encrypt_time);
             
-            // Memory analysis for subsequent message encryption
             let mut sub_encrypt_memory = MemoryStats::default();
             sub_encrypt_memory.ciphertext_size = get_serialized_size(&bob_reply_ciphertext.serialize());
             sub_encrypt_memory.total_storage = sub_encrypt_memory.ciphertext_size + test_message.len();
@@ -602,7 +556,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                 .or_insert_with(Vec::new)
                 .push(sub_encrypt_memory);
             
-            // BENCHMARK 5: Normal signal message decryption
             let start = Instant::now();
             let alice_received = match &bob_reply_ciphertext {
                 CiphertextMessage::SignalMessage(signal_msg) => {
@@ -621,7 +574,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                 .or_insert_with(Vec::new)
                 .push(signal_decrypt_time);
             
-            // Memory analysis for signal message decryption
             let mut signal_decrypt_memory = MemoryStats::default();
             signal_decrypt_memory.ciphertext_size = get_serialized_size(&bob_reply_ciphertext.serialize());
             signal_decrypt_memory.session_state_size = estimate_size(&alice_store.session_store);
@@ -631,12 +583,9 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                 .or_insert_with(Vec::new)
                 .push(signal_decrypt_memory);
             
-            // Verify decryption
             assert_eq!(test_message.as_bytes(), alice_received);
             
-            // BENCHMARK 6: Multiple ratchet turns for performance stability
             for ratchet_turn in 0..5 {
-                // Alice encrypts
                 let start = Instant::now();
                 let alice_ratchet_msg = message_encrypt_swoosh(
                     test_message.as_bytes(),
@@ -651,7 +600,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                     .or_insert_with(Vec::new)
                     .push(alice_ratchet_encrypt_time);
                 
-                // Memory analysis for ratchet encryption
                 let mut ratchet_encrypt_memory = MemoryStats::default();
                 ratchet_encrypt_memory.ciphertext_size = get_serialized_size(&alice_ratchet_msg.serialize());
                 ratchet_encrypt_memory.total_storage = ratchet_encrypt_memory.ciphertext_size + test_message.len();
@@ -660,7 +608,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                     .or_insert_with(Vec::new)
                     .push(ratchet_encrypt_memory);
                 
-                // Bob decrypts
                 let start = Instant::now();
                 let _bob_ratchet_received = match &alice_ratchet_msg {
                     CiphertextMessage::SignalMessage(signal_msg) => {
@@ -679,7 +626,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
                     .or_insert_with(Vec::new)
                     .push(bob_ratchet_decrypt_time);
                 
-                // Memory analysis for ratchet decryption
                 let mut ratchet_decrypt_memory = MemoryStats::default();
                 ratchet_decrypt_memory.ciphertext_size = get_serialized_size(&alice_ratchet_msg.serialize());
                 ratchet_decrypt_memory.session_state_size = estimate_size(&bob_store.session_store);
@@ -692,7 +638,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
         }
     }
     
-    // Calculate and display statistics
     println!("\n=== PERFORMANCE ANALYSIS RESULTS ===");
     
     fn calculate_stats(times: &[Duration]) -> (Duration, Duration, Duration, Duration, Duration, f64) {
@@ -726,7 +671,6 @@ async fn benchmark_swoosh_performance_pqxdh() -> Result<(), SignalProtocolError>
         (mean, median, min, max, std_dev, dev_percentage)
     }
     
-    // Memory analysis helper functions
     fn calculate_memory_stats(memories: &[MemoryStats]) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
         let key_sizes: Vec<usize> = memories.iter().map(|m| m.key_size).collect();
         let ciphertext_sizes: Vec<usize> = memories.iter().map(|m| m.ciphertext_size).collect();

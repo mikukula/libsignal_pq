@@ -151,6 +151,7 @@ async fn process_prekey_impl(
         our_kyber_pre_key_pair,
         *message.identity_key(),
         *message.base_key(),
+        *message.swoosh_identity_key(),
         message.kyber_ciphertext(),
         use_pq_ratchet,
     );

@@ -25,6 +25,7 @@ message PreKeySignalMessage {
   optional uint32 swoosh_signed_pre_key_id = 9;
   optional bytes  base_key          = 2;
   optional bytes  identity_key      = 3;
+  optional bytes  swoosh_identity_key = 10;
   optional bytes  message           = 4; // SignalMessage
 }
 

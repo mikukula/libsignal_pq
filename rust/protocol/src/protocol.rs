@@ -302,6 +302,7 @@ impl PreKeySignalMessage {
         signed_pre_key_id: SignedPreKeyId,
         kyber_payload: Option<KyberPayload>,
         swoosh_signed_pre_key_id: Option<SwooshPreKeyId>,
+        swoosh_identity_key: Option<PublicSwooshKey>,
         base_key: PublicKey,
         identity_key: IdentityKey,
         message: SignalMessage,
@@ -317,6 +318,7 @@ impl PreKeySignalMessage {
                 .map(|kyber| kyber.ciphertext.to_vec()),
             base_key: Some(base_key.serialize().into_vec()),
             identity_key: Some(identity_key.serialize().into_vec()),
+            swoosh_identity_key: swoosh_identity_key.map(|key| key.serialize().into_vec()),
             message: Some(Vec::from(message.as_ref())),
         };
         let mut serialized = Vec::with_capacity(1 + proto_message.encoded_len());
@@ -1047,6 +1049,7 @@ mod tests {
             97.into(),
             None, // TODO: add kyber prekeys
             None, // TODO: add swoosh prekeys
+            None,
             base_key_pair.public_key,
             identity_key_pair.public_key.into(),
             message,
@@ -1159,6 +1162,7 @@ mod tests {
             97.into(),
             None, // TODO: add kyber prekeys
             None, // TODO: add swoosh prekeys
+            None,
             base_key_pair.public_key,
             identity_key_pair.public_key.into(),
             message,

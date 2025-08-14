@@ -207,7 +207,7 @@ pub(crate) fn initialize_alice_session_pswoosh<R: Rng + CryptoRng>(
         &our_identity_swoosh_private_key
             .derive_shared_secret(our_identity_swoosh_public_key, parameters.their_swoosh_pre_key().unwrap(), is_alice)?
     );
-    
+
     let kyber_ciphertext = parameters
         .their_kyber_pre_key()
         .map(|kyber_public| {
@@ -278,6 +278,8 @@ pub(crate) fn initialize_bob_session_pswoosh(
 ) -> Result<SessionState> {
 
     let local_identity = parameters.our_identity_key_pair().identity_key();
+    let swoosh_pre_keys = &parameters.our_swoosh_pre_key_pair().unwrap();
+    let is_alice = false; // Always false for Bob's session initialization
 
     let mut secrets = Vec::with_capacity(32 * 5);
 
@@ -312,19 +314,12 @@ pub(crate) fn initialize_bob_session_pswoosh(
         );
     }
     // If we integrate Swoosh into X3DH
-    /*
     secrets.extend_from_slice(
-        &parameters
-            .our_ratchet_swoosh_key_pair()
-            .unwrap()
+        &swoosh_pre_keys
             .private_key
-            .derive_shared_secret(
-                &parameters.our_ratchet_swoosh_key_pair().unwrap().public_key,
-                &parameters.their_swoosh_pre_key().unwrap(),
-                false,
-            )?
+            .derive_shared_secret(&swoosh_pre_keys.public_key, parameters.their_swoosh_identity_key().unwrap(), is_alice)?,
     );
-    */
+
     match (
         parameters.our_kyber_pre_key_pair(),
         parameters.their_kyber_ciphertext(),

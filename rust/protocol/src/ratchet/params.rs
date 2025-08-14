@@ -195,7 +195,9 @@ pub struct BobSignalProtocolParameters<'a> {
 
     // Swoosh quantum-resistant keys
     our_ratchet_swoosh_key_pair: Option<SwooshKeyPair>,
+    our_swoosh_pre_key_pair: Option<SwooshKeyPair>,
     their_swoosh_ratchet_key: Option<PublicSwooshKey>,
+    their_swoosh_identity_key: Option<PublicSwooshKey>,
     their_kyber_ciphertext: Option<&'a kem::SerializedCiphertext>,
 
     use_pq_ratchet: UsePQRatchet,
@@ -209,8 +211,10 @@ impl<'a> BobSignalProtocolParameters<'a> {
         our_one_time_pre_key_pair: Option<KeyPair>,
         our_ratchet_key_pair: KeyPair,
         our_ratchet_swoosh_key_pair: Option<SwooshKeyPair>,
+        our_swoosh_pre_key_pair: Option<SwooshKeyPair>,
         our_kyber_pre_key_pair: Option<kem::KeyPair>,
         their_identity_key: IdentityKey,
+        their_swoosh_identity_key: Option<PublicSwooshKey>,
         their_base_key: PublicKey,
         their_kyber_ciphertext: Option<&'a kem::SerializedCiphertext>,
         use_pq_ratchet: UsePQRatchet,
@@ -222,8 +226,10 @@ impl<'a> BobSignalProtocolParameters<'a> {
             our_ratchet_key_pair,
             our_kyber_pre_key_pair,
             their_identity_key,
+            their_swoosh_identity_key,
             their_base_key,
             our_ratchet_swoosh_key_pair,
+            our_swoosh_pre_key_pair,
             their_swoosh_ratchet_key: None,
             their_swoosh_pre_key: None,
             their_kyber_ciphertext,
@@ -269,6 +275,11 @@ impl<'a> BobSignalProtocolParameters<'a> {
     }
 
     #[inline]
+    pub fn our_swoosh_pre_key_pair(&self) -> Option<&SwooshKeyPair> {
+        self.our_swoosh_pre_key_pair.as_ref()
+    }
+
+    #[inline]
     pub fn our_one_time_pre_key_pair(&self) -> Option<&KeyPair> {
         self.our_one_time_pre_key_pair.as_ref()
     }
@@ -276,6 +287,11 @@ impl<'a> BobSignalProtocolParameters<'a> {
     #[inline]
     pub fn our_ratchet_key_pair(&self) -> &KeyPair {
         &self.our_ratchet_key_pair
+    }
+
+    #[inline]
+    pub fn their_swoosh_identity_key(&self) -> Option<&PublicSwooshKey> {
+        self.their_swoosh_identity_key.as_ref()
     }
 
     #[inline]

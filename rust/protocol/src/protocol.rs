@@ -288,6 +288,7 @@ pub struct PreKeySignalMessage {
     signed_pre_key_id: SignedPreKeyId,
     kyber_payload: Option<KyberPayload>,
     swoosh_signed_pre_key_id: Option<SwooshPreKeyId>,
+    swoosh_identity_key: Option<PublicSwooshKey>,
     base_key: PublicKey,
     identity_key: IdentityKey,
     message: SignalMessage,
@@ -318,7 +319,7 @@ impl PreKeySignalMessage {
                 .map(|kyber| kyber.ciphertext.to_vec()),
             base_key: Some(base_key.serialize().into_vec()),
             identity_key: Some(identity_key.serialize().into_vec()),
-            swoosh_identity_key: swoosh_identity_key.map(|key| key.serialize().into_vec()),
+            swoosh_identity_key: swoosh_identity_key.map(|key| key.serialize().into()),
             message: Some(Vec::from(message.as_ref())),
         };
         let mut serialized = Vec::with_capacity(1 + proto_message.encoded_len());
@@ -335,6 +336,7 @@ impl PreKeySignalMessage {
             swoosh_signed_pre_key_id,
             base_key,
             identity_key,
+            swoosh_identity_key,
             message,
             serialized: serialized.into_boxed_slice(),
         })
@@ -386,6 +388,11 @@ impl PreKeySignalMessage {
     }
 
     #[inline]
+    pub fn identity_swoosh_key(&self) -> Option<PublicSwooshKey> {
+        self.swoosh_identity_key
+    }
+
+    #[inline]
     pub fn message(&self) -> &SignalMessage {
         &self.message
     }
@@ -431,6 +438,8 @@ impl TryFrom<&[u8]> for PreKeySignalMessage {
         let identity_key = proto_structure
             .identity_key
             .ok_or(SignalProtocolError::InvalidProtobufEncoding)?;
+        let swoosh_identity_key = proto_structure
+            .swoosh_identity_key;
         let message = proto_structure
             .message
             .ok_or(SignalProtocolError::InvalidProtobufEncoding)?;
@@ -477,6 +486,7 @@ impl TryFrom<&[u8]> for PreKeySignalMessage {
             swoosh_signed_pre_key_id,
             base_key,
             identity_key: IdentityKey::try_from(identity_key.as_ref())?,
+            swoosh_identity_key: Some(PublicSwooshKey::try_from(swoosh_identity_key.as_ref().unwrap().as_slice())?),
             message: SignalMessage::try_from(message.as_ref())?,
             serialized: Box::from(value),
         })

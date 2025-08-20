@@ -62,12 +62,11 @@ pub async fn message_encrypt<R: Rng + CryptoRng>(
     })?;
     
     // Print the encryption key being used for this message
-    /*
     println!("🔑 MESSAGE ENCRYPTION KEY (for {}): length={} bytes, first 8 bytes: {:02x?}", 
              remote_address, 
              message_keys.cipher_key().len(), 
              &message_keys.cipher_key()[..8]);
-    */
+    
     let ctext =
         signal_crypto::aes_256_cbc_encrypt(ptext, message_keys.cipher_key(), message_keys.iv())
             .map_err(|_| {
@@ -189,7 +188,7 @@ pub async fn message_encrypt_swoosh<R: Rng + CryptoRng>(
         .ok_or_else(|| SignalProtocolError::SessionNotFound(remote_address.clone()))?;
     
     let chain_key = session_state.get_sender_chain_key()?;
-    // println!("🔑 Encryption SWOOSH chain key first 8 bytes: {:02x?}", &chain_key.key()[..8]);
+    println!("🔑 Sender SWOOSH chain key first 8 bytes: {:02x?}", &chain_key.key()[..8]);
     
     let (pqr_msg, pqr_key) = session_state.pq_ratchet_send(csprng).map_err(|e| {
         // Since we're sending, this must be an error with the state.
@@ -202,7 +201,7 @@ pub async fn message_encrypt_swoosh<R: Rng + CryptoRng>(
     let message_keys = chain_key.message_keys().generate_keys(pqr_key);
     
     let sender_swoosh_ephemeral = session_state.sender_ratchet_swoosh_public_key()?;
-    //println!("🔑 Swoosh ephemeral key first 8 bytes: {:02x?}", &sender_swoosh_ephemeral.public_key_bytes()[..8]);
+    println!("🔑 Swoosh ephemeral key first 8 bytes: {:02x?}", &sender_swoosh_ephemeral.public_key_bytes()[..8]);
     
     let previous_counter = session_state.previous_counter();
     let session_version = session_state
@@ -219,12 +218,11 @@ pub async fn message_encrypt_swoosh<R: Rng + CryptoRng>(
     })?;
     
     // Print the encryption key being used for this message
-    /*
     println!("🔑 MESSAGE ENCRYPTION KEY (for {}): length={} bytes, first 8 bytes: {:02x?}", 
              remote_address, 
              message_keys.cipher_key().len(), 
              &message_keys.cipher_key()[..8]);
-    */
+    
     let ctext =
         signal_crypto::aes_256_cbc_encrypt(ptext, message_keys.cipher_key(), message_keys.iv())
             .map_err(|_| {
@@ -1010,11 +1008,11 @@ fn decrypt_message_with_state<R: Rng + CryptoRng>(
             }
         })?;
     let message_keys = message_key_gen.generate_keys(pqr_key);
-    /*
+    
     println!("🔑 BOB DECRYPTION KEY (regular) - length: {}, first 8 bytes: {:02x?}", 
              message_keys.cipher_key().len(),
              &message_keys.cipher_key()[..8.min(message_keys.cipher_key().len())]);
-    */
+    
     let their_identity_key =
         state
             .remote_identity_key()?
@@ -1114,11 +1112,10 @@ fn decrypt_message_with_state_swoosh(
     let message_keys = message_key_gen.generate_keys(pqr_key);
 
     // Print Decryption Key - length and first 8 bytes
-    /*
     println!("🔑 DECRYPTION KEY - length: {}, first 8 bytes: {:02x?}", 
              message_keys.cipher_key().len(),
              &message_keys.cipher_key()[..8.min(message_keys.cipher_key().len())]);
-    */
+    
     let their_identity_key =
         state
             .remote_identity_key()?
@@ -1218,16 +1215,18 @@ fn get_or_create_chain_swoosh_key(
     let root_key = state.root_key()?;
     let our_ephemeral = state.sender_ratchet_swoosh_private_key()?;
     let our_ephemeral_public = state.sender_ratchet_swoosh_public_key()?;
-    let receiver_chain = root_key.create_chain_swoosh(their_ephemeral, &our_ephemeral_public, &our_ephemeral, is_alice)?;
+    let receiver_chain = root_key.create_chain_swoosh(their_ephemeral,
+         &our_ephemeral_public, &our_ephemeral, is_alice)?;
     
     // Debug: Print the first 8 bytes of receiver_chain root key before it gets moved
-    //println!("🔑 Receiver swoosh root key first 8 bytes: {:02x?}", &receiver_chain.0.key()[..8]);
-    //println!("🔑 Receiver swoosh chain key first 8 bytes: {:02x?}", &receiver_chain.1.key()[..8]);
+    println!("🔑 Receiver swoosh root key first 8 bytes: {:02x?}", &receiver_chain.0.key()[..8]);
+    println!("🔑 Receiver swoosh chain key first 8 bytes: {:02x?}", &receiver_chain.1.key()[..8]);
 
     let our_new_ephemeral = SwooshKeyPair::generate(is_alice);
     let sender_chain = receiver_chain
         .0
-        .create_chain_swoosh(their_ephemeral, &our_new_ephemeral.public_key(), &our_new_ephemeral.private_key(), is_alice)?;
+        .create_chain_swoosh(their_ephemeral, &our_new_ephemeral.public_key(),
+         &our_new_ephemeral.private_key(), is_alice)?;
 
     state.set_root_key(&sender_chain.0);
     state.add_receiver_swoosh_chain(their_ephemeral, &receiver_chain.1);
@@ -1242,7 +1241,7 @@ fn get_or_create_chain_swoosh_key(
     state.set_sender_swoosh_chain(&our_new_ephemeral, &sender_chain.1);
 
     // Debug: Print the first 8 bytes of sender_chain.1
-    //println!("🔑 Sender SWOOSH chain key first 8 bytes: {:02x?}", &sender_chain.1.key()[..8]);
+    println!("🔑 Sender SWOOSH chain key first 8 bytes: {:02x?}", &sender_chain.1.key()[..8]);
 
     Ok(receiver_chain.1)
 }

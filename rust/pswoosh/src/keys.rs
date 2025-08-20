@@ -126,17 +126,6 @@ impl PublicSwooshKey {
             PublicSwooshKeyData::PswooshPublicKey(_) => SwooshKeyType::Pswoosh,
         }
     }
-
-    /// Derive shared secret using this public key and a private key
-    pub fn derive_shared_secret(&self, private_key: &PrivateSwooshKey, f: bool) -> Result<[u8; SYMBYTES], SwooshError> {
-        match (&self.key, &private_key.key) {
-            (PublicSwooshKeyData::PswooshPublicKey(pub_key), PrivateSwooshKeyData::PswooshPrivateKey(priv_key)) => {
-                // For pswoosh key derivation, we need another public key
-                // This is a simplified version - in practice you'd need both public keys
-                Ok(pswoosh_skey_deriv(pub_key, pub_key, priv_key, f))
-            }
-        }
-    }
 }
 
 impl TryFrom<&[u8]> for PublicSwooshKey {

@@ -228,10 +228,10 @@ pub(crate) fn initialize_alice_session_pswoosh<R: Rng + CryptoRng>(
         &sending_swoosh_ratchet_key.private_key,
         is_alice,
     )?;
-    /*
+    
     println!("🔑 Alice sending swoosh root key first 8 bytes: {:02x?}", &sending_swoosh_root_key.key()[..8]);
     println!("🔑 Alice sending swoosh chain key first 8 bytes: {:02x?}", &sending_swoosh_chain_key.key()[..8]);
-    */
+    
     let self_session = local_identity == parameters.their_identity_key();
     let pqr_state = match parameters.use_pq_ratchet() {
         UsePQRatchet::Yes => spqr::initial_state(spqr::Params {

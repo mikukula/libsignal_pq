@@ -8,7 +8,7 @@ fn main() -> Result<(), SignalProtocolError> {
     use std::thread;
     
     let handle = thread::Builder::new()
-        .stack_size(100 * 1024 * 1024)
+        .stack_size(100 * 1024 * 1024) //100MB stack size
         .spawn(|| {
             tokio::runtime::Runtime::new()
                 .unwrap()
@@ -32,8 +32,10 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("Alice Identity Public Key: {:?}", hex::encode(alice_identity.identity_key().serialize()));
     println!("Bob Identity Public Key: {:?}", hex::encode(bob_identity.identity_key().serialize()));
     
-    let mut alice_store = InMemSignalProtocolStore::new(alice_identity, csprng.next_u32(), true)?;
-    let mut bob_store = InMemSignalProtocolStore::new(bob_identity, csprng.next_u32(), false)?;
+    let mut alice_store = InMemSignalProtocolStore::new(alice_identity,
+         csprng.next_u32(), true)?;
+    let mut bob_store = InMemSignalProtocolStore::new(bob_identity,
+         csprng.next_u32(), false)?;
     
     let bob_signed_prekey_pair = KeyPair::generate(&mut csprng);
     let bob_signed_prekey_id = SignedPreKeyId::from(1u32);

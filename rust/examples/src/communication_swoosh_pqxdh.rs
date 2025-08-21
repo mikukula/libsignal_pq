@@ -125,7 +125,9 @@ async fn async_main() -> Result<(), SignalProtocolError> {
 
     println!("\n=== PRE-KEY BUNDLE CREATED (WITH SWOOSH) ===");
     println!("Registration ID: {:?}", bob_store.get_local_registration_id().await?);
-    
+
+    println!(" SWOOSH pre-key bundle processing by Alice has started ");
+
     process_swoosh_prekey_bundle(
         &bob_address,
         &mut alice_store.session_store,
@@ -136,15 +138,17 @@ async fn async_main() -> Result<(), SignalProtocolError> {
         UsePQRatchet::No,
     ).await?;
     
-    println!("\n=== SESSION ESTABLISHED (WITH SWOOSH POST-QUANTUM) ===");
-    println!("✓ ALICE'S SWOOSH KEYS ARE NOW ESTABLISHED");
-    println!("  At this point, Alice has generated her Swoosh ratchet keys");
-    println!("  and can derive shared secrets with Bob's Swoosh pre-key");
+    println!(" SWOOSH pre-key bundle processed ");
+    println!(" Alice's PQXDH and first Ratchet step completed ");
     
     let alice_session = alice_store.session_store.load_session(&bob_address).await?.unwrap();
     println!("✓ Alice has active session: {}", alice_session.has_usable_sender_chain(SystemTime::now()).unwrap_or(false));
     
     let alice_message = "Hello Bob! This is Alice.";
+    println!("\n=== ALICE'S MESSAGE ===");
+    println!("Alice prepares a message: {}", alice_message);
+    println!(" Message encryption started ");
+
     let alice_ciphertext = message_encrypt_swoosh(
         alice_message.as_bytes(),
         &bob_address,
@@ -154,8 +158,6 @@ async fn async_main() -> Result<(), SignalProtocolError> {
         &mut csprng,
     ).await?;
     
-    println!("\n=== ALICE'S MESSAGE ===");
-    println!("Alice sent: {}", alice_message);
     println!("Ciphertext type: {:?}", alice_ciphertext.message_type());
     println!("Ciphertext length: {} bytes", alice_ciphertext.serialize().len());
     
@@ -211,6 +213,9 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("✓ Bob session is usable: {}", bob_final_session.has_usable_sender_chain(SystemTime::now()).unwrap_or(false));
     
     let bob_reply = "Hello Alice! Nice to hear from you.";
+    println!("\n=== BOB'S REPLY ===");
+    println!("{}", bob_reply);
+
     let bob_ciphertext = message_encrypt_swoosh(
         bob_reply.as_bytes(),
         &alice_address,
@@ -220,8 +225,7 @@ async fn async_main() -> Result<(), SignalProtocolError> {
         &mut csprng,
     ).await?;
     
-    println!("\n=== BOB'S REPLY ===");
-    println!("Bob sent: {}", bob_reply);
+    
     println!("Reply ciphertext type: {:?}", bob_ciphertext.message_type());
     println!("Reply ciphertext length: {} bytes", bob_ciphertext.serialize().len());
     
@@ -243,6 +247,8 @@ async fn async_main() -> Result<(), SignalProtocolError> {
     println!("Alice received: {}", alice_decrypted_reply);
     
     let alice_second_message = "Thanks Bob! How's the Swoosh post-quantum cryptography working for you?";
+    println!("\n=== ALICE'S SECOND MESSAGE (Turn 3) ===");
+    println!("{}", alice_second_message);
     let alice_second_ciphertext = message_encrypt_swoosh(
         alice_second_message.as_bytes(),
         &bob_address,
@@ -252,8 +258,6 @@ async fn async_main() -> Result<(), SignalProtocolError> {
         &mut csprng,
     ).await?;
     
-    println!("\n=== ALICE'S SECOND MESSAGE (Turn 3) ===");
-    println!("Alice sent: {}", alice_second_message);
     println!("Ciphertext type: {:?}", alice_second_ciphertext.message_type());
     println!("Ciphertext length: {} bytes", alice_second_ciphertext.serialize().len());
     

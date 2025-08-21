@@ -201,7 +201,7 @@ pub async fn message_encrypt_swoosh<R: Rng + CryptoRng>(
     let message_keys = chain_key.message_keys().generate_keys(pqr_key);
     
     let sender_swoosh_ephemeral = session_state.sender_ratchet_swoosh_public_key()?;
-    println!("🔑 Swoosh ephemeral key first 8 bytes: {:02x?}", &sender_swoosh_ephemeral.public_key_bytes()[..8]);
+    // println!("🔑 Swoosh ephemeral key first 8 bytes: {:02x?}", &sender_swoosh_ephemeral.public_key_bytes()[..8]);
     
     let previous_counter = session_state.previous_counter();
     let session_version = session_state
@@ -1242,6 +1242,7 @@ fn get_or_create_chain_swoosh_key(
 
     // Debug: Print the first 8 bytes of sender_chain.1
     println!("🔑 Sender SWOOSH chain key first 8 bytes: {:02x?}", &sender_chain.1.key()[..8]);
+    println!("🔑 Receiver SWOOSH chain key first 8 bytes: {:02x?}", &receiver_chain.1.key()[..8]);
 
     Ok(receiver_chain.1)
 }
